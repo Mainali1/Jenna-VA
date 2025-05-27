@@ -1,0 +1,7 @@
+backend/__pycache__
+backend/core/__pycache__
+backend/features/__pycache__
+backend/utils/__pycache__
+data
+venv
+frontend/node_modules
