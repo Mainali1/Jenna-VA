@@ -36,6 +36,10 @@ pywin32==306
 plyer==2.1.0
 watchdog==3.0.0
 
+# Desktop GUI
+PyQt5==5.15.9
+PyQtWebEngine==5.15.6
+
 # Security and Authentication
 PyJWT==2.8.0
 cryptography==41.0.4

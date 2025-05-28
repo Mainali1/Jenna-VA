@@ -1,83 +1,76 @@
-# Jenna - Commercial Desktop Voice Assistant
+# Jenna Voice Assistant
 
-A sophisticated, commercial-grade desktop voice assistant application with advanced AI capabilities, modern UI, and comprehensive feature set.
+![Jenna Voice Assistant](https://img.shields.io/badge/Jenna-Voice%20Assistant-blue)
+![License](https://img.shields.io/badge/License-Proprietary-red)
+![Python](https://img.shields.io/badge/Python-3.10%2B-green)
+![Node.js](https://img.shields.io/badge/Node.js-16%2B-green)
 
-## 🌟 Features
+Jenna Voice Assistant is a sophisticated, commercial-grade desktop voice assistant with advanced AI capabilities, modern UI, and comprehensive features designed to enhance productivity and provide a seamless voice-controlled experience.
+
+## Features
 
 ### Core Voice Control
-- **Customizable Wake Phrase**: "Jenna Ready" activation
-- **Hybrid Recognition**: Google Speech (online) + Vosk (offline)
-- **Low-Latency Audio**: SoundDevice backend for quick responses
-- **AI Mode**: Enhanced conversational abilities
+- **Wake Phrase Detection**: Activate Jenna with "Jenna Ready"
+- **Voice Commands**: Control your computer and access features by voice
+- **AI Conversation**: Have natural conversations with AI-powered responses
+
+### Productivity Features
+- **Task Management**: Create, track, and manage tasks and projects
+- **Notes**: Create and organize notes with voice or text
+- **Reminders**: Set time-based reminders
+- **Calendar Integration**: Manage your schedule and events
 
 ### Academic Features
-- **Smart Pomodoro Timer**: 25-minute study sessions
-- **Flashcard System**: Spaced repetition learning
-- **Text Summarization**: NLTK-based knowledge retention
-- **Quick Research**: Instant Wikipedia integration
-
-### Enhanced Capabilities
-- **Weather Service**: Real-time weather updates
-- **Mood Detection**: Context-aware responses
-- **File System Integration**: Organized file access
-- **Email Management**: Comprehensive email handling
-- **Dynamic Responses**: AI-powered conversation
-- **Session Management**: Secure user sessions
-- **Automated Backup**: Data protection
-- **Screen Analysis**: Context-aware assistance
+- **Pomodoro Timer**: Structured study sessions with breaks
+- **Flashcards**: Create and study flashcards with spaced repetition
+- **Text Summarization**: Summarize text content for better retention
+- **Research Assistant**: Quick information lookup and research help
 
 ### System Integration
-- **App Launcher**: Extensive application control
-- **File Operations**: Direct file access and management
-- **Music Control**: Audio playbook management
-- **System Tray**: Continuous background operation
-- **Startup Launch**: Automatic system integration
+- **File Operations**: Open, create, and manage files by voice
+- **Screen Analysis**: Get context-aware assistance based on screen content
+- **System Tray**: Access Jenna from the system tray even when minimized
+- **Native Desktop Window**: Display the UI in a dedicated window
 
-## 🏗️ Architecture
+## Architecture
 
-```
-Jenna-VA/
-├── backend/                 # Python backend services
-│   ├── core/               # Core voice and AI functionality
-│   ├── features/           # Feature implementations
-│   ├── services/           # External service integrations
-│   └── utils/              # Utility functions
-├── frontend/               # React + Tailwind CSS UI
-│   ├── src/
-│   │   ├── components/     # React components
-│   │   ├── pages/          # Application pages
-│   │   ├── hooks/          # Custom React hooks
-│   │   └── utils/          # Frontend utilities
-│   └── public/             # Static assets
-├── installer/              # Installation and packaging
-├── customer/               # Customer deployment package
-├── docs/                   # Documentation
-└── tests/                  # Test suites
-```
+Jenna Voice Assistant is built with a modern, modular architecture:
 
-## 🚀 Quick Start
+- **Backend**: Python-based core with FastAPI for the web server
+  - Core modules for voice recognition, AI processing, and system integration
+  - Feature modules for specific functionality (tasks, notes, etc.)
+  - Utility modules for common operations
+
+- **Frontend**: React with TypeScript and Tailwind CSS
+  - Modern, responsive UI
+  - WebSocket communication with the backend
+  - Component-based architecture
+
+## Quick Start
 
 ### Prerequisites
-- Python 3.10+
-- Node.js 16+
-- Windows 10/11
+
+- Python 3.10 or higher
+- Node.js 16 or higher
+- Microsoft Visual C++ Redistributable (latest version)
 
 ### Installation
 
-1. **Clone the repository**
+1. Clone the repository:
    ```bash
-   git clone https://github.com/your-org/jenna-va.git
-   cd jenna-va
+   git clone https://github.com/Mainali1/Jenna-VA.git
+   cd Jenna-VA
    ```
 
-2. **Setup Python environment**
+2. Set up Python environment:
    ```bash
    python -m venv venv
-   venv\Scripts\activate
+   venv\Scripts\activate  # On Windows
+   source venv/bin/activate  # On macOS/Linux
    pip install -r requirements.txt
    ```
 
-3. **Setup Frontend**
+3. Set up the frontend:
    ```bash
    cd frontend
    npm install
@@ -85,30 +78,25 @@ Jenna-VA/
    cd ..
    ```
 
-4. **Configure Environment**
+4. Configure environment:
    ```bash
-   copy .env.template .env
-   # Edit .env with your API keys
+   copy .env.template .env  # On Windows
+   cp .env.template .env  # On macOS/Linux
+   # Edit .env with your API keys and preferences
    ```
 
-5. **Run Development Server**
+5. Run the application:
    ```bash
    python main.py
    ```
 
-## 🔧 Configuration
+## Configuration
 
-All settings are managed through the `.env` file and can be modified via the frontend interface:
+All settings are managed through the `.env` file. See [USAGE.md](./USAGE.md) for detailed configuration options.
 
-- Voice recognition settings
-- API key configurations
-- Feature toggles
-- UI preferences
-- Security settings
+## Deployment
 
-## 📦 Deployment
-
-The application uses PyInstaller/Nuitka with Inno Setup for one-click installation:
+For production deployment, you can build a standalone executable:
 
 ```bash
 python build.py --release
@@ -116,29 +104,47 @@ python build.py --release
 
 This creates a complete installer in the `dist/` directory.
 
-## 🔐 Security
+## Maintenance
 
-- All code and packages are secured against information leaks
-- API keys are encrypted and stored securely
-- Session management with JWT tokens
-- Automatic feature disabling for missing API keys
+### Cleaning the Codebase
 
-## 🎨 UI Design
+To remove redundant files, development artifacts, and temporary files:
 
-Inspired by Jarvis from Iron Man:
-- Skeletal hollow spinning ball visualization
-- Wave-like lighting effects during speech
-- Modern, responsive design
-- Dark theme with accent colors
+```bash
+python cleanup.py  # Remove all redundant files
+python cleanup.py --dry-run  # Show what would be removed without deleting
+python cleanup.py --cache  # Remove only Python cache files
+```
 
-## 📝 License
+See `python cleanup.py --help` for more options.
 
-Proprietary software with commercial licensing protection.
+## Security
 
-## 🤝 Contributing
+- All sensitive data is stored locally by default
+- API keys are stored in the `.env` file (not committed to version control)
+- Communication with external services uses HTTPS
 
-This is a commercial project. Please contact the development team for contribution guidelines.
+## UI Design
 
-## 📞 Support
+The UI is designed with a focus on:
 
-For technical support and feature requests, please contact our support team.
+- **Accessibility**: Clear contrast, keyboard navigation, screen reader support
+- **Responsiveness**: Adapts to different screen sizes
+- **Consistency**: Uniform design language throughout the application
+- **Simplicity**: Intuitive interface with minimal learning curve
+
+## Contributing
+
+Jenna Voice Assistant is proprietary software. If you wish to contribute, please read [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines and the [LICENSE](./LICENSE) for terms.
+
+## License
+
+This project is licensed under a proprietary license - see the [LICENSE](./LICENSE) file for details.
+
+## Support
+
+For support, feature requests, or bug reports, please open an issue on the GitHub repository.
+
+---
+
+© 2023 Jenna Development Team. All rights reserved.

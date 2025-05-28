@@ -95,6 +95,7 @@ class Settings(BaseSettings):
     ui_show_visualizer: bool = Field(default=True, description="Show audio visualizer")
     ui_minimize_to_tray: bool = Field(default=True, description="Minimize to tray")
     ui_start_minimized: bool = Field(default=False, description="Start minimized")
+    use_desktop_window: bool = Field(default=True, description="Use native desktop window instead of browser")
     
     # System Integration
     start_with_windows: bool = Field(default=True, description="Start with Windows")

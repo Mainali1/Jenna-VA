@@ -1,0 +1,52 @@
+# Jenna Voice Assistant - Proprietary License
+
+## Copyright (c) 2023 Jenna Development Team
+
+### PROPRIETARY SOFTWARE LICENSE AGREEMENT
+
+This Proprietary Software License Agreement ("License") is a legal agreement between you (either an individual or a single entity) and the Jenna Development Team for the Jenna Voice Assistant software product, which includes computer software and may include associated media, printed materials, and online or electronic documentation ("Software").
+
+### 1. GRANT OF LICENSE
+
+The Software is licensed, not sold. This License grants you the following rights:
+
+- **Installation and Use**: You may install and use one copy of the Software on a single computer.
+- **Personal Use**: You may use the Software for personal, non-commercial purposes only, unless you have acquired a commercial license.
+
+### 2. RESTRICTIONS
+
+- You may not reverse engineer, decompile, or disassemble the Software, except and only to the extent that such activity is expressly permitted by applicable law.
+- You may not rent, lease, lend, sell, redistribute, sublicense, or provide commercial hosting services with the Software.
+- You may not copy, distribute, or create derivative works based on the Software.
+
+### 3. MODIFICATIONS
+
+If you wish to modify the Software for any purpose:
+
+- You MUST prominently credit the original work by linking to: `https://github.com/Mainali1/Jenna-VA`
+- Any modifications or derivative works MUST be substantially different, with at least 50% of the code changed or added compared to the original Software.
+- You MUST clearly indicate that your work is a modified version of Jenna Voice Assistant.
+
+### 4. OWNERSHIP
+
+All title, ownership rights, and intellectual property rights in and to the Software and any copies thereof remain with the Jenna Development Team. All rights not expressly granted are reserved by the Jenna Development Team.
+
+### 5. TERMINATION
+
+This License is effective until terminated. Your rights under this License will terminate automatically without notice if you fail to comply with any term of this License. Upon termination, you shall cease all use of the Software and destroy all copies, full or partial, of the Software.
+
+### 6. DISCLAIMER OF WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+### 7. LIMITATION OF LIABILITY
+
+IN NO EVENT SHALL THE JENNA DEVELOPMENT TEAM BE LIABLE FOR ANY SPECIAL, INCIDENTAL, INDIRECT, OR CONSEQUENTIAL DAMAGES WHATSOEVER (INCLUDING, WITHOUT LIMITATION, DAMAGES FOR LOSS OF BUSINESS PROFITS, BUSINESS INTERRUPTION, LOSS OF BUSINESS INFORMATION, OR ANY OTHER PECUNIARY LOSS) ARISING OUT OF THE USE OF OR INABILITY TO USE THE SOFTWARE, EVEN IF THE JENNA DEVELOPMENT TEAM HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+### 8. GOVERNING LAW
+
+This License shall be governed by and construed in accordance with the laws of the jurisdiction in which the Jenna Development Team is located, excluding its conflict of law provisions.
+
+### 9. ENTIRE AGREEMENT
+
+This License constitutes the entire agreement between you and the Jenna Development Team relating to the Software and supersedes all prior or contemporaneous understandings regarding such subject matter.

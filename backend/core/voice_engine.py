@@ -366,48 +366,72 @@ class VoiceEngine:
             # Create a temporary WAV file for PocketSphinx to process
             import tempfile
             import wave
+            import os.path
             
+            # Create temp file with proper extension
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
                 temp_filename = temp_file.name
             
-            # Write audio data to WAV file
-            with wave.open(temp_filename, 'wb') as wf:
-                wf.setnchannels(self.channels)
-                wf.setsampwidth(2)  # 16-bit audio
-                wf.setframerate(self.sample_rate)
-                wf.writeframes(audio_data.tobytes())
-            
-            # Configure PocketSphinx for file-based recognition
-            from pocketsphinx import AudioFile, get_model_path
-            
-            config = {
-                'verbose': False,
-                'audio_file': temp_filename,
-                'buffer_size': self.chunk_size,
-                'no_search': False,
-                'full_utt': True,
-                'hmm': os.path.join(self.pocketsphinx_model, 'en-us'),
-                'lm': os.path.join(self.pocketsphinx_model, 'en-us.lm.bin'),
-                'dict': os.path.join(self.pocketsphinx_model, 'cmudict-en-us.dict')
-            }
-            
-            # Process audio file
-            audio_file = AudioFile(**config)
-            result = ""
-            
-            # Get the best hypothesis
-            for phrase in audio_file:
-                if phrase and hasattr(phrase, 'segments'):
-                    result = str(phrase)
-                    break
-            
-            # Clean up temporary file
             try:
-                os.unlink(temp_filename)
-            except Exception:
-                pass
+                # Write audio data to WAV file
+                with wave.open(temp_filename, 'wb') as wf:
+                    wf.setnchannels(self.channels)
+                    wf.setsampwidth(2)  # 16-bit audio
+                    wf.setframerate(self.sample_rate)
+                    wf.writeframes(audio_data.tobytes())
+                
+                # Configure PocketSphinx for file-based recognition
+                from pocketsphinx import AudioFile, Decoder
+                
+                # Ensure model paths exist and are valid
+                hmm_path = os.path.join(self.pocketsphinx_model, 'en-us')
+                lm_path = os.path.join(self.pocketsphinx_model, 'en-us.lm.bin')
+                dict_path = os.path.join(self.pocketsphinx_model, 'cmudict-en-us.dict')
+                
+                # Verify model files exist
+                if not os.path.exists(hmm_path):
+                    self.logger.warning(f"PocketSphinx acoustic model not found at {hmm_path}")
+                    return None
+                
+                if not os.path.exists(lm_path):
+                    self.logger.warning(f"PocketSphinx language model not found at {lm_path}")
+                    return None
+                
+                if not os.path.exists(dict_path):
+                    self.logger.warning(f"PocketSphinx dictionary not found at {dict_path}")
+                    return None
+                
+                # Configure decoder
+                config = {
+                    'verbose': False,
+                    'audio_file': temp_filename,
+                    'buffer_size': self.chunk_size,
+                    'no_search': False,
+                    'full_utt': True,
+                    'hmm': hmm_path,
+                    'lm': lm_path,
+                    'dict': dict_path
+                }
+                
+                # Process audio file
+                audio_file = AudioFile(**config)
+                result = ""
+                
+                # Get the best hypothesis
+                for phrase in audio_file:
+                    if phrase:
+                        result = str(phrase)
+                        break
+                
+                return result.strip() if result else None
             
-            return result.strip() if result else None
+            finally:
+                # Clean up temporary file
+                try:
+                    if os.path.exists(temp_filename):
+                        os.unlink(temp_filename)
+                except Exception as e:
+                    self.logger.debug(f"Error removing temporary file: {e}")
             
         except Exception as e:
             self.logger.debug(f"PocketSphinx recognition error: {e}")

@@ -13,6 +13,13 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+# Try to import desktop window manager
+try:
+    from .desktop_window import DesktopWindowManager, PYQT_AVAILABLE
+except ImportError:
+    DesktopWindowManager = None
+    PYQT_AVAILABLE = False
+
 from .config import Settings
 from .logger import get_logger
 from ..utils.exceptions import UIManagerException
@@ -92,6 +99,15 @@ class UIManager:
         self.host = "127.0.0.1"
         self.port = 8080
         self.server = None
+        
+        # Desktop window manager
+        self.desktop_window = None
+        if PYQT_AVAILABLE and self.settings.use_desktop_window:
+            try:
+                self.desktop_window = DesktopWindowManager(self.settings)
+            except Exception as e:
+                self.logger.error(f"Failed to initialize desktop window: {e}")
+                self.desktop_window = None
         
         # Setup routes
         self._setup_routes()
@@ -407,6 +423,15 @@ class UIManager:
             else:
                 self.logger.warning("⚠️ Frontend build not found, using fallback UI")
             
+            # Initialize desktop window if available
+            if self.desktop_window:
+                try:
+                    self.desktop_window.initialize()
+                    self.logger.info("✅ Desktop window initialized")
+                except Exception as e:
+                    self.logger.error(f"Failed to initialize desktop window: {e}")
+                    self.desktop_window = None
+            
             self.logger.info("✅ UI manager initialized successfully")
             
         except Exception as e:
@@ -414,9 +439,18 @@ class UIManager:
             raise UIManagerException(f"UI manager initialization failed: {e}")
     
     async def start_server(self):
-        """Start the web server."""
+        """Start the web server and desktop window if available."""
         try:
             self.logger.info(f"🌐 Starting web server on http://{self.host}:{self.port}")
+            
+            # Start desktop window if available
+            if self.desktop_window:
+                try:
+                    self.desktop_window.start()
+                    self.logger.info("✅ Desktop window started")
+                except Exception as e:
+                    self.logger.error(f"Failed to start desktop window: {e}")
+                    self.desktop_window = None
             
             config = uvicorn.Config(
                 app=self.app,
@@ -474,17 +508,32 @@ class UIManager:
         })
     
     def show_window(self):
-        """Show the UI window (open in browser)."""
+        """Show the UI window (desktop window or browser)."""
         try:
-            url = f"http://{self.host}:{self.port}"
-            webbrowser.open(url)
-            self.logger.info(f"🌐 Opening UI in browser: {url}")
+            # Use desktop window if available
+            if self.desktop_window:
+                self.desktop_window.show_window()
+                self.logger.info("🖥️ Opening UI in desktop window")
+            else:
+                # Fallback to browser
+                url = f"http://{self.host}:{self.port}"
+                webbrowser.open(url)
+                self.logger.info(f"🌐 Opening UI in browser: {url}")
         except Exception as e:
-            self.logger.error(f"Failed to open browser: {e}")
+            self.logger.error(f"Failed to show window: {e}")
     
     def hide_window(self):
-        """Hide the UI window (browser-based, so just log)."""
-        self.logger.info("🙈 UI window hide requested (browser-based)")
+        """Hide the UI window."""
+        try:
+            # Use desktop window if available
+            if self.desktop_window:
+                self.desktop_window.hide_window()
+                self.logger.info("🙈 Desktop window hidden")
+            else:
+                # Browser-based, so just log
+                self.logger.info("🙈 UI window hide requested (browser-based)")
+        except Exception as e:
+            self.logger.error(f"Failed to hide window: {e}")
     
     def get_url(self) -> str:
         """Get the UI URL."""
@@ -505,6 +554,14 @@ class UIManager:
             # Stop server
             if self.server:
                 self.server.should_exit = True
+            
+            # Clean up desktop window
+            if self.desktop_window:
+                try:
+                    self.desktop_window.cleanup()
+                    self.logger.info("✅ Desktop window cleanup completed")
+                except Exception as e:
+                    self.logger.error(f"Error during desktop window cleanup: {e}")
             
             self.logger.info("✅ UI manager cleanup completed")
             
