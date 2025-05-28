@@ -29,10 +29,12 @@ class Settings(BaseSettings):
     wake_phrase: str = Field(default="Jenna Ready", description="Wake phrase")
     voice_recognition_engine: str = Field(default="hybrid", description="Recognition engine")
     offline_model_path: Path = Field(default=Path("./models/vosk"), description="Offline model path")
+    pocketsphinx_model_path: Path = Field(default=Path("./models/pocketsphinx"), description="PocketSphinx model path")
     speech_timeout: float = Field(default=5.0, description="Speech timeout in seconds")
     phrase_timeout: float = Field(default=1.0, description="Phrase timeout in seconds")
     energy_threshold: int = Field(default=300, description="Energy threshold for voice detection")
     dynamic_energy_threshold: bool = Field(default=True, description="Dynamic energy threshold")
+    preferred_offline_engine: str = Field(default="vosk", description="Preferred offline recognition engine")
     
     # Text-to-Speech Settings
     tts_engine: str = Field(default="pyttsx3", description="TTS engine")
@@ -140,9 +142,17 @@ class Settings(BaseSettings):
     @validator('voice_recognition_engine')
     def validate_voice_engine(cls, v):
         """Validate voice recognition engine."""
-        valid_engines = ['google', 'vosk', 'hybrid']
+        valid_engines = ['google', 'vosk', 'pocketsphinx', 'hybrid']
         if v not in valid_engines:
             raise ValueError(f"Voice engine must be one of: {valid_engines}")
+        return v
+        
+    @validator('preferred_offline_engine')
+    def validate_offline_engine(cls, v):
+        """Validate preferred offline engine."""
+        valid_engines = ['vosk', 'pocketsphinx']
+        if v not in valid_engines:
+            raise ValueError(f"Preferred offline engine must be one of: {valid_engines}")
         return v
     
     @validator('tts_engine')

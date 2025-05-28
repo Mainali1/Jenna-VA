@@ -5,6 +5,7 @@ sounddevice==0.4.6
 vosk==0.3.45
 google-cloud-speech==2.21.0
 pyttsx3==2.90
+pocketsphinx==0.1.15
 
 # AI and NLP
 nltk==3.8.1

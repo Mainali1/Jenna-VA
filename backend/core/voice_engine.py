@@ -13,6 +13,8 @@ import sounddevice as sd
 import numpy as np
 from vosk import Model, KaldiRecognizer
 import json
+import os
+from pocketsphinx import LiveSpeech, get_model_path
 
 from .config import Settings
 from .logger import get_logger, VoiceLogger
@@ -32,6 +34,8 @@ class VoiceEngine:
         self.microphone = None
         self.vosk_model = None
         self.vosk_recognizer = None
+        self.pocketsphinx_model = None
+        self.pocketsphinx_recognizer = None
         
         # TTS components
         self.tts_engine = None
@@ -98,8 +102,11 @@ class VoiceEngine:
         """Initialize speech recognition engines."""
         engine = self.settings.voice_recognition_engine
         
-        if engine in ['vosk', 'hybrid']:
+        if engine in ['vosk', 'hybrid'] or (engine == 'pocketsphinx' and self.settings.preferred_offline_engine == 'vosk'):
             await self._initialize_vosk()
+        
+        if engine in ['pocketsphinx', 'hybrid'] or (engine == 'vosk' and self.settings.preferred_offline_engine == 'pocketsphinx'):
+            await self._initialize_pocketsphinx()
         
         if engine in ['google', 'hybrid']:
             await self._initialize_google_speech()
@@ -123,6 +130,41 @@ class VoiceEngine:
             
         except Exception as e:
             self.logger.warning(f"⚠️ Vosk initialization failed: {e}")
+    
+    async def _initialize_pocketsphinx(self):
+        """Initialize PocketSphinx offline speech recognition."""
+        try:
+            model_path = self.settings.pocketsphinx_model_path
+            
+            if not model_path.exists():
+                self.logger.warning(f"⚠️ PocketSphinx model not found at {model_path}")
+                self.logger.info("📥 Using default PocketSphinx model")
+                # Use default model path from pocketsphinx
+                model_path = Path(get_model_path())
+            
+            # Store model path for later use
+            self.pocketsphinx_model = str(model_path)
+            
+            # Test if we can initialize LiveSpeech (we'll create actual recognizer when needed)
+            test_config = {
+                'verbose': False,
+                'sampling_rate': self.sample_rate,
+                'buffer_size': self.chunk_size,
+                'no_search': False,
+                'full_utt': False,
+                'hmm': os.path.join(self.pocketsphinx_model, 'en-us'),
+                'lm': os.path.join(self.pocketsphinx_model, 'en-us.lm.bin'),
+                'dict': os.path.join(self.pocketsphinx_model, 'cmudict-en-us.dict')
+            }
+            
+            # Just test if we can create it, don't actually start listening
+            # We'll create a new instance when needed
+            LiveSpeech(**test_config)
+            
+            self.logger.info("✅ PocketSphinx offline recognition initialized")
+            
+        except Exception as e:
+            self.logger.warning(f"⚠️ PocketSphinx initialization failed: {e}")
     
     async def _initialize_google_speech(self):
         """Initialize Google Speech Recognition."""
@@ -270,13 +312,24 @@ class VoiceEngine:
         engine = self.settings.voice_recognition_engine
         
         if engine == 'hybrid':
-            # Try offline first, fallback to online
-            text = await self._recognize_with_vosk(audio)
+            # Try offline first based on preferred engine, fallback to online
+            if self.settings.preferred_offline_engine == 'vosk':
+                text = await self._recognize_with_vosk(audio)
+                if not text:
+                    text = await self._recognize_with_pocketsphinx(audio)
+            else:  # preferred_offline_engine == 'pocketsphinx'
+                text = await self._recognize_with_pocketsphinx(audio)
+                if not text:
+                    text = await self._recognize_with_vosk(audio)
+            
+            # If both offline engines fail, try online
             if not text:
                 text = await self._recognize_with_google(audio)
             return text
         elif engine == 'vosk':
             return await self._recognize_with_vosk(audio)
+        elif engine == 'pocketsphinx':
+            return await self._recognize_with_pocketsphinx(audio)
         elif engine == 'google':
             return await self._recognize_with_google(audio)
         
@@ -300,6 +353,65 @@ class VoiceEngine:
             self.logger.debug(f"Vosk recognition error: {e}")
         
         return None
+    
+    async def _recognize_with_pocketsphinx(self, audio) -> Optional[str]:
+        """Recognize speech using PocketSphinx offline engine."""
+        if not self.pocketsphinx_model:
+            return None
+        
+        try:
+            # Convert audio to the format PocketSphinx expects
+            audio_data = np.frombuffer(audio.get_raw_data(), dtype=np.int16)
+            
+            # Create a temporary WAV file for PocketSphinx to process
+            import tempfile
+            import wave
+            
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                temp_filename = temp_file.name
+            
+            # Write audio data to WAV file
+            with wave.open(temp_filename, 'wb') as wf:
+                wf.setnchannels(self.channels)
+                wf.setsampwidth(2)  # 16-bit audio
+                wf.setframerate(self.sample_rate)
+                wf.writeframes(audio_data.tobytes())
+            
+            # Configure PocketSphinx for file-based recognition
+            from pocketsphinx import AudioFile, get_model_path
+            
+            config = {
+                'verbose': False,
+                'audio_file': temp_filename,
+                'buffer_size': self.chunk_size,
+                'no_search': False,
+                'full_utt': True,
+                'hmm': os.path.join(self.pocketsphinx_model, 'en-us'),
+                'lm': os.path.join(self.pocketsphinx_model, 'en-us.lm.bin'),
+                'dict': os.path.join(self.pocketsphinx_model, 'cmudict-en-us.dict')
+            }
+            
+            # Process audio file
+            audio_file = AudioFile(**config)
+            result = ""
+            
+            # Get the best hypothesis
+            for phrase in audio_file:
+                if phrase and hasattr(phrase, 'segments'):
+                    result = str(phrase)
+                    break
+            
+            # Clean up temporary file
+            try:
+                os.unlink(temp_filename)
+            except Exception:
+                pass
+            
+            return result.strip() if result else None
+            
+        except Exception as e:
+            self.logger.debug(f"PocketSphinx recognition error: {e}")
+            return None
     
     async def _recognize_with_google(self, audio) -> Optional[str]:
         """Recognize speech using Google Speech Recognition."""
@@ -399,20 +511,24 @@ class VoiceEngine:
         self.logger.info("⚙️ Voice engine settings updated")
     
     def get_status(self) -> Dict[str, Any]:
-        """Get current voice engine status."""
+        """Get current status of the voice engine."""
+        available_engines = []
+        if self.vosk_recognizer:
+            available_engines.append('vosk')
+        if self.pocketsphinx_model:
+            available_engines.append('pocketsphinx')
+        available_engines.append('google')  # Always available as fallback
+        
         return {
-            "is_listening": self.is_listening,
-            "is_speaking": self.is_speaking,
-            "wake_word_detected": self.wake_word_detected,
-            "recognition_count": self.recognition_count,
-            "error_count": self.error_count,
-            "last_recognition_time": self.last_recognition_time,
-            "energy_threshold": getattr(self.recognizer, 'energy_threshold', 0),
-            "engines_available": {
-                "vosk": self.vosk_recognizer is not None,
-                "google": True,  # Always available if internet works
-                "tts": self.tts_engine is not None
-            }
+            'is_listening': self.is_listening,
+            'is_speaking': self.is_speaking,
+            'wake_word_detected': self.wake_word_detected,
+            'recognition_count': self.recognition_count,
+            'error_count': self.error_count,
+            'energy_threshold': getattr(self.recognizer, 'energy_threshold', None),
+            'available_engines': available_engines,
+            'current_engine': self.settings.voice_recognition_engine,
+            'preferred_offline_engine': self.settings.preferred_offline_engine
         }
     
     async def cleanup(self):
