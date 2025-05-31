@@ -52,6 +52,22 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="gpt-3.5-turbo", description="OpenAI model")
     openai_max_tokens: int = Field(default=150, description="OpenAI max tokens")
     
+    # New API Keys for Public APIs
+    ipstack_api_key: Optional[str] = Field(default=None, description="IPstack API key for geolocation")
+    fixer_api_key: Optional[str] = Field(default=None, description="Fixer API key for currency exchange")
+    news_api_key: Optional[str] = Field(default=None, description="News API key for news articles")
+    wordnik_api_key: Optional[str] = Field(default=None, description="Wordnik API key for dictionary feature")
+    linguatools_api_key: Optional[str] = Field(default=None, description="LinguaTools API key for translation feature")
+    edamam_recipe_app_id: Optional[str] = Field(default=None, description="Edamam Recipe API app ID")
+    edamam_recipe_app_key: Optional[str] = Field(default=None, description="Edamam Recipe API app key")
+    edamam_nutrition_app_id: Optional[str] = Field(default=None, description="Edamam Nutrition API app ID")
+    edamam_nutrition_app_key: Optional[str] = Field(default=None, description="Edamam Nutrition API app key")
+    
+    # News API Settings
+    news_default_country: str = Field(default="us", description="Default country for news")
+    news_default_language: str = Field(default="en", description="Default language for news")
+    news_default_category: str = Field(default="general", description="Default news category")
+    
     # Wikipedia Settings
     wikipedia_language: str = Field(default="en", description="Wikipedia language")
     wikipedia_sentences: int = Field(default=3, description="Wikipedia summary sentences")
@@ -87,6 +103,15 @@ class Settings(BaseSettings):
     feature_screen_analysis: bool = Field(default=True, description="Screen analysis feature")
     feature_mood_detection: bool = Field(default=True, description="Mood detection feature")
     feature_backup: bool = Field(default=True, description="Backup feature")
+    
+    # New Feature Toggles
+    feature_ipstack: bool = Field(default=True, description="IP geolocation feature")
+    feature_fixer: bool = Field(default=True, description="Currency exchange feature")
+    feature_news: bool = Field(default=True, description="News articles feature")
+    feature_dictionary: bool = Field(default=True, description="Dictionary lookup feature")
+    feature_translation: bool = Field(default=True, description="Text translation feature")
+    feature_recipe: bool = Field(default=True, description="Recipe search feature")
+    feature_nutrition: bool = Field(default=True, description="Nutrition analysis feature")
     
     # UI Settings
     ui_theme: str = Field(default="dark", description="UI theme")
@@ -204,6 +229,28 @@ class Settings(BaseSettings):
         if self.voice_recognition_engine in ['google', 'hybrid'] and not self.google_cloud_credentials_path:
             missing['google_cloud_credentials'] = 'Google Speech Recognition'
         
+        # New API key checks
+        if self.feature_ipstack and not self.ipstack_api_key:
+            missing['ipstack_api_key'] = 'IP geolocation'
+            
+        if self.feature_fixer and not self.fixer_api_key:
+            missing['fixer_api_key'] = 'Currency exchange'
+            
+        if self.feature_news and not self.news_api_key:
+            missing['news_api_key'] = 'News articles'
+            
+        if self.feature_dictionary and not self.wordnik_api_key:
+            missing['wordnik_api_key'] = 'Dictionary lookup'
+            
+        if self.feature_translation and not self.linguatools_api_key:
+            missing['linguatools_api_key'] = 'Text translation'
+            
+        if self.feature_recipe and not (self.edamam_recipe_app_id and self.edamam_recipe_app_key):
+            missing['edamam_recipe_credentials'] = 'Recipe search'
+            
+        if self.feature_nutrition and not (self.edamam_nutrition_app_id and self.edamam_nutrition_app_key):
+            missing['edamam_nutrition_credentials'] = 'Nutrition analysis'
+        
         return missing
     
     def is_feature_available(self, feature: str) -> bool:
@@ -217,6 +264,20 @@ class Settings(BaseSettings):
             return bool(self.weather_api_key)
         elif feature == 'email':
             return bool(self.smtp_server and self.smtp_username and self.smtp_password)
+        elif feature == 'ipstack':
+            return bool(self.ipstack_api_key)
+        elif feature == 'fixer':
+            return bool(self.fixer_api_key)
+        elif feature == 'news':
+            return bool(self.news_api_key)
+        elif feature == 'dictionary':
+            return bool(self.wordnik_api_key)
+        elif feature == 'translation':
+            return bool(self.linguatools_api_key)
+        elif feature == 'recipe':
+            return bool(self.edamam_recipe_app_id and self.edamam_recipe_app_key)
+        elif feature == 'nutrition':
+            return bool(self.edamam_nutrition_app_id and self.edamam_nutrition_app_key)
         
         return True
     

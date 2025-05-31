@@ -19,6 +19,12 @@ Jenna Voice Assistant is a sophisticated, commercial-grade desktop voice assista
 - **Notes**: Create and organize notes with voice or text
 - **Reminders**: Set time-based reminders
 - **Calendar Integration**: Manage your schedule and events
+- **Dictionary**: Look up word definitions, synonyms, examples, and more
+- **Translation**: Translate text between multiple language pairs
+
+### Lifestyle Features
+- **Recipe Search**: Find recipes with filters for diet, health, cuisine, and meal type
+- **Nutrition Analysis**: Get detailed nutrition information for ingredients and recipes
 
 ### Academic Features
 - **Pomodoro Timer**: Structured study sessions with breaks
