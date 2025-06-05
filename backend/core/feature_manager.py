@@ -142,6 +142,12 @@ class FeatureManager:
         from backend.features.recipe_feature import RecipeFeature
         from backend.features.nutrition_feature import NutritionFeature
         
+        # Import new features
+        from backend.features.health_fitness_feature import HealthFitnessFeature
+        from backend.features.financial_management_feature import FinancialManagementFeature
+        from backend.features.music_media_feature import MusicMediaFeature
+        from backend.features.voice_personality_feature import VoicePersonalityFeature
+        
         # Register core features
         self.register_feature(PomodoroFeature(self.settings))
         self.register_feature(WeatherFeature(self.settings))
@@ -155,6 +161,12 @@ class FeatureManager:
         self.register_feature(TranslationFeature(self.settings))
         self.register_feature(RecipeFeature(self.settings))
         self.register_feature(NutritionFeature(self.settings))
+        
+        # Register additional features
+        self.register_feature(HealthFitnessFeature(self.settings))
+        self.register_feature(FinancialManagementFeature(self.settings))
+        self.register_feature(MusicMediaFeature(self.settings))
+        self.register_feature(VoicePersonalityFeature(self.settings))
         
         # Log registered features
         self.logger.info(f"Registered {len(self.features)} features")

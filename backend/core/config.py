@@ -113,6 +113,12 @@ class Settings(BaseSettings):
     feature_recipe: bool = Field(default=True, description="Recipe search feature")
     feature_nutrition: bool = Field(default=True, description="Nutrition analysis feature")
     
+    # Additional Features
+    feature_health_fitness: bool = Field(default=True, description="Health and fitness tracking feature")
+    feature_financial_management: bool = Field(default=True, description="Financial management and budgeting feature")
+    feature_music_media: bool = Field(default=True, description="Music and media control feature")
+    feature_voice_personality: bool = Field(default=True, description="Customizable voice and personality feature")
+    
     # UI Settings
     ui_theme: str = Field(default="dark", description="UI theme")
     ui_accent_color: str = Field(default="#00ff88", description="UI accent color")
