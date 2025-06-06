@@ -1,0 +1,31 @@
+pocketsphinx==0.1.15
+
+# AI and NLP
+nltk==3.8.1
+transformers==4.33.2
+torch==2.0.1
+numpy==1.24.3
+scipy==1.11.2
+
+# Web Framework and API
+fastapi==0.103.1
+uvicorn==0.23.2
+websockets==11.0.3
+requests==2.31.0
+httpx==0.24.1
+aiohttp==3.8.5
+
+# Database and Storage
+sqlalchemy==2.0.20
+alembic==1.12.0
+
+# Image and Media Processing
+Pillow==10.0.0
+pygame==2.5.2
+opencv-python==4.8.0.76
+
+# System Integration
+psutil==5.9.5
+pywin32==306
+plyer==2.1.0
+watchdog==3.0.0

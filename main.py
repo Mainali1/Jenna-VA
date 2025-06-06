@@ -2,141 +2,130 @@
 """
 Jenna Voice Assistant - Main Entry Point
 
-A commercial-grade desktop voice assistant with advanced AI capabilities.
-Author: Jenna Development Team
-Version: 1.0.0
+This script serves as the main entry point for the Jenna Voice Assistant application.
+It initializes and starts the application, handling command-line arguments and
+performing necessary setup tasks.
 """
 
-import sys
 import os
+import sys
+import time
 import asyncio
-import signal
+import argparse
+import logging
 from pathlib import Path
-from typing import Optional
 
-# Add project root to Python path
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
+# Add the project root directory to the Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from backend.core.application import JennaApplication
-from backend.core.config import Settings
-from backend.core.logger import setup_logger
-from backend.utils.system import check_system_requirements, setup_directories
-from backend.utils.exceptions import JennaException
-
-
-def handle_shutdown(signum, frame):
-    """Handle graceful shutdown on system signals."""
-    print("\nReceived shutdown signal. Gracefully shutting down...")
-    sys.exit(0)
-
-
-def setup_signal_handlers():
-    """Setup signal handlers for graceful shutdown."""
-    signal.signal(signal.SIGINT, handle_shutdown)
-    signal.signal(signal.SIGTERM, handle_shutdown)
-    if hasattr(signal, 'SIGBREAK'):  # Windows
-        signal.signal(signal.SIGBREAK, handle_shutdown)
-
-
-def check_environment() -> bool:
-    """Check if the environment is properly configured."""
-    env_file = project_root / ".env"
-    if not env_file.exists():
-        print("❌ Environment file (.env) not found!")
-        print("📋 Please copy .env.template to .env and configure your settings.")
-        return False
-    
-    return True
-
-
-def display_banner():
-    """Display application banner."""
-    banner = """
-    ╔══════════════════════════════════════════════════════════════╗
-    ║                                                              ║
-    ║        🤖 JENNA - Voice Assistant v1.0.0                    ║
-    ║                                                              ║
-    ║        Commercial-Grade Desktop AI Assistant                 ║
-    ║        Ready to assist with voice and text commands         ║
-    ║                                                              ║
-    ╚══════════════════════════════════════════════════════════════╝
-    """
-    print(banner)
+from backend.core.app import JennaApp
 
 
 async def main():
-    """Main application entry point."""
+    """Main entry point for the Jenna Voice Assistant application."""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="Jenna Voice Assistant")
+    parser.add_argument(
+        "--config", 
+        type=str, 
+        help="Path to configuration file",
+        default=None
+    )
+    parser.add_argument(
+        "--setup-models", 
+        action="store_true", 
+        help="Setup offline models"
+    )
+    parser.add_argument(
+        "--build-rust", 
+        action="store_true", 
+        help="Build Rust modules"
+    )
+    parser.add_argument(
+        "--debug", 
+        action="store_true", 
+        help="Enable debug mode"
+    )
+    args = parser.parse_args()
+    
+    # Setup offline models if requested
+    if args.setup_models:
+        await setup_models()
+        return
+    
+    # Build Rust modules if requested
+    if args.build_rust:
+        await build_rust_modules()
+        return
+    
+    # Create and initialize the application
+    app = JennaApp(args.config)
+    
+    # Initialize the application
+    success = await app.initialize()
+    if not success:
+        print("Failed to initialize Jenna Voice Assistant")
+        return 1
+    
+    # Start the application
+    success = await app.start()
+    if not success:
+        print("❌ Failed to start Jenna Voice Assistant. Even I'm not perfect! Try again?")
+        return 1
+    
+    print("✨ Jenna Voice Assistant is up and running! I'm all yours now. Press Ctrl+C when you've had enough of my awesomeness. 💁‍♀️")
+    
     try:
-        # Display banner
-        display_banner()
-        
-        # Setup signal handlers
-        setup_signal_handlers()
-        
-        # Check environment configuration
-        if not check_environment():
-            return 1
-        
-        # Load settings
-        settings = Settings()
-        
-        # Setup logging
-        logger = setup_logger(settings)
-        logger.info("Starting Jenna Voice Assistant...")
-        
-        # Check system requirements
-        if not check_system_requirements():
-            logger.error("System requirements not met")
-            return 1
-        
-        # Setup directories
-        setup_directories(settings)
-        
-        # Initialize and start the application
-        app = JennaApplication(settings)
-        
-        logger.info("Initializing application components...")
-        await app.initialize()
-        
-        logger.info("🚀 Jenna is ready! Say 'Jenna Ready' to activate.")
-        print("\n✅ Jenna is now running in the background.")
-        print("💬 Say 'Jenna Ready' to activate voice commands.")
-        print("🎯 Check the system tray for quick access.")
-        print("⏹️  Press Ctrl+C to stop.\n")
-        
-        # Start the main application loop
-        await app.run()
-        
+        # Keep the application running until interrupted
+        while True:
+            await asyncio.sleep(1)
     except KeyboardInterrupt:
-        print("\n👋 Goodbye! Jenna is shutting down...")
-        return 0
-    except JennaException as e:
-        print(f"❌ Jenna Error: {e}")
-        return 1
-    except Exception as e:
-        print(f"💥 Unexpected error: {e}")
-        if settings and settings.debug:
-            import traceback
-            traceback.print_exc()
-        return 1
+        print("\nShutting down Jenna Voice Assistant...")
     finally:
-        # Cleanup
-        if 'app' in locals():
-            await app.cleanup()
+        # Stop the application
+        await app.stop()
+    
+    return 0
+
+
+async def setup_models():
+    """Setup offline models for voice recognition and text-to-speech."""
+    from scripts.setup_vosk import main as setup_vosk
+    from scripts.setup_larynx import main as setup_larynx
+    from scripts.setup_rasa import main as setup_rasa
+    
+    print("💅 Getting my beauty products ready... I mean, setting up offline models! This might take a minute, darling.")
+    
+    # Setup Vosk models
+    print("\n🎧 Time to make sure I can hear you properly! Setting up Vosk models for speech recognition...")
+    await asyncio.to_thread(setup_vosk)
+    
+    # Setup Larynx models
+    print("\n🗣️ Now let's work on my voice - it needs to be fabulous! Setting up Larynx models for text-to-speech...")
+    await asyncio.to_thread(setup_larynx)
+    
+    # Setup Rasa models
+    print("\n🧠 Upgrading my brain cells! Setting up Rasa models for natural language understanding...")
+    await asyncio.to_thread(setup_rasa)
+    
+    print("\n✨ All done! My offline models are looking gorgeous and ready to slay! 💁‍♀️")
+
+
+async def build_rust_modules():
+    """Build Rust modules for enhanced performance."""
+    from scripts.build_rust_modules import main as build_rust
+    
+    print("⚙️ Time to flex my muscles! Building those high-performance Rust modules... 💪")
+    await asyncio.to_thread(build_rust)
+    print("✨ Rust modules built and looking fierce! I'm basically a supermodel with these performance enhancements. 💁‍♀️")
 
 
 if __name__ == "__main__":
-    # Check Python version
-    if sys.version_info < (3, 10):
-        print("❌ Python 3.10 or higher is required!")
-        print(f"📍 Current version: {sys.version}")
-        sys.exit(1)
-    
-    # Run the application
+    # Run the main function using asyncio
     try:
         exit_code = asyncio.run(main())
         sys.exit(exit_code)
-    except KeyboardInterrupt:
-        print("\n👋 Goodbye!")
-        sys.exit(0)
+    except Exception as e:
+        print(f"💔 Well, this is embarrassing... Something went wrong: {e}")
+        print("🤦‍♀️ Even a queen has her off days! Try again later, darling.")
+        sys.exit(1)

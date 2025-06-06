@@ -1,581 +1,586 @@
-"""Voice Engine for Speech Recognition and Text-to-Speech"""
+"""Voice Engine Module for Jenna Voice Assistant.
 
-import asyncio
-import threading
-import queue
-import time
-from typing import Optional, Callable, Dict, Any
-from pathlib import Path
+This module provides voice recognition and text-to-speech capabilities
+using both online and offline engines.
+"""
 
-import speech_recognition as sr
-import pyttsx3
-import sounddevice as sd
-import numpy as np
-from vosk import Model, KaldiRecognizer
-import json
 import os
-from pocketsphinx import LiveSpeech, get_model_path
+import sys
+import time
+import queue
+import logging
+import threading
+from pathlib import Path
+from typing import Optional, Dict, List, Tuple, Any, Callable, Union
 
-from .config import Settings
-from .logger import get_logger, VoiceLogger
-from ..utils.exceptions import VoiceEngineException
+import numpy as np
+
+from .config import Config
+from .rust_bridge import WakeWordDetector, SpeechRecognizer, TextToSpeech, AudioProcessor, SignalProcessor
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 
 class VoiceEngine:
-    """Handles voice recognition and text-to-speech functionality."""
+    """Voice Engine for Jenna Voice Assistant.
     
-    def __init__(self, settings: Settings):
-        self.settings = settings
-        self.logger = get_logger(__name__)
-        self.voice_logger = VoiceLogger(settings)
+    This class provides voice recognition and text-to-speech capabilities
+    using both online and offline engines.
+    """
+    
+    def __init__(self, config: Config):
+        """Initialize the voice engine.
         
-        # Recognition components
-        self.recognizer = sr.Recognizer()
-        self.microphone = None
-        self.vosk_model = None
-        self.vosk_recognizer = None
-        self.pocketsphinx_model = None
-        self.pocketsphinx_recognizer = None
-        
-        # TTS components
-        self.tts_engine = None
-        self.tts_lock = threading.Lock()
-        
-        # State management
+        Args:
+            config: Configuration object
+        """
+        self.config = config
         self.is_listening = False
         self.is_speaking = False
-        self.wake_word_detected = False
+        self.audio_processor = AudioProcessor()
+        self.signal_processor = SignalProcessor()
+        
+        # Initialize wake word detector
+        self.wake_word_detector = self._initialize_wake_word_detector()
+        
+        # Initialize speech recognizer
+        self.speech_recognizer = self._initialize_speech_recognizer()
+        
+        # Initialize text-to-speech engine
+        self.tts_engine = self._initialize_tts_engine()
+        
+        # Audio buffers and queues
         self.audio_queue = queue.Queue()
+        self.recognition_queue = queue.Queue()
+        self.tts_queue = queue.Queue()
         
-        # Event callbacks
-        self.on_wake_word_detected: Optional[Callable] = None
-        self.on_speech_recognized: Optional[Callable] = None
-        self.on_speech_timeout: Optional[Callable] = None
+        # Callbacks
+        self.on_wake_word_detected = None
+        self.on_speech_recognized = None
+        self.on_speech_not_recognized = None
+        self.on_tts_started = None
+        self.on_tts_finished = None
         
-        # Audio settings
-        self.sample_rate = settings.audio_sample_rate
-        self.chunk_size = settings.audio_chunk_size
-        self.channels = settings.audio_channels
+        # Threads
+        self.wake_word_thread = None
+        self.recognition_thread = None
+        self.tts_thread = None
         
-        # Performance tracking
-        self.last_recognition_time = 0
-        self.recognition_count = 0
-        self.error_count = 0
+        # Thread control
+        self.running = False
+        self.wake_word_detected = False
     
-    async def initialize(self):
-        """Initialize voice engine components."""
-        try:
-            self.logger.info("🎤 Initializing voice engine...")
+    def _initialize_wake_word_detector(self) -> WakeWordDetector:
+        """Initialize the wake word detector.
+        
+        Returns:
+            Initialized wake word detector
+        """
+        # Get wake word model and keyword paths
+        models_dir = Path(self.config.get("VOICE_RECOGNITION", "models_dir", fallback="models"))
+        wake_word_engine = self.config.get("VOICE_RECOGNITION", "wake_word_engine", fallback="porcupine")
+        
+        if wake_word_engine == "porcupine":
+            model_path = models_dir / "porcupine" / "porcupine_params.pv"
+            keyword_path = models_dir / "porcupine" / "jenna_windows.ppn"
             
-            if not self.settings.dev_skip_audio_init:
-                await self._initialize_microphone()
-                await self._initialize_recognition_engines()
-                await self._initialize_tts_engine()
-            else:
-                self.logger.info("⚠️ Skipping audio initialization (dev mode)")
-            
-            self.logger.info("✅ Voice engine initialized successfully")
-            
-        except Exception as e:
-            self.logger.error(f"Failed to initialize voice engine: {e}")
-            raise VoiceEngineException(f"Voice engine initialization failed: {e}")
+            # Check if model files exist, if not, use default paths from config
+            if not model_path.exists() or not keyword_path.exists():
+                model_path = self.config.get("VOICE_RECOGNITION", "wake_word_model_path", fallback="")
+                keyword_path = self.config.get("VOICE_RECOGNITION", "wake_word_keyword_path", fallback="")
+        else:
+            # Use default paths from config for other engines
+            model_path = self.config.get("VOICE_RECOGNITION", "wake_word_model_path", fallback="")
+            keyword_path = self.config.get("VOICE_RECOGNITION", "wake_word_keyword_path", fallback="")
+        
+        # Get sensitivity
+        sensitivity = self.config.get_float("VOICE_RECOGNITION", "wake_word_sensitivity", fallback=0.5)
+        
+        # Initialize wake word detector
+        detector = WakeWordDetector(str(model_path) if model_path else None, 
+                                   str(keyword_path) if keyword_path else None, 
+                                   sensitivity)
+        
+        # Initialize if model and keyword paths are provided
+        if model_path and keyword_path and Path(model_path).exists() and Path(keyword_path).exists():
+            detector.initialize(str(model_path), str(keyword_path))
+        
+        return detector
     
-    async def _initialize_microphone(self):
-        """Initialize microphone for speech recognition."""
-        try:
-            self.microphone = sr.Microphone()
-            
-            # Adjust for ambient noise
-            self.logger.info("🔧 Calibrating microphone for ambient noise...")
-            with self.microphone as source:
-                if self.settings.dynamic_energy_threshold:
-                    self.recognizer.adjust_for_ambient_noise(source, duration=1)
+    def _initialize_speech_recognizer(self) -> SpeechRecognizer:
+        """Initialize the speech recognizer.
+        
+        Returns:
+            Initialized speech recognizer
+        """
+        # Get speech recognition model path
+        models_dir = Path(self.config.get("VOICE_RECOGNITION", "models_dir", fallback="models"))
+        speech_recognition_engine = self.config.get("VOICE_RECOGNITION", "speech_recognition_engine", fallback="vosk")
+        
+        if speech_recognition_engine == "vosk":
+            # Try to find a Vosk model
+            vosk_dir = models_dir / "vosk"
+            if vosk_dir.exists():
+                # Find the first model directory
+                model_dirs = [d for d in vosk_dir.iterdir() if d.is_dir() and d.name.startswith("vosk-model")]
+                if model_dirs:
+                    model_path = model_dirs[0]
                 else:
-                    self.recognizer.energy_threshold = self.settings.energy_threshold
-            
-            self.logger.info(f"🎚️ Energy threshold set to: {self.recognizer.energy_threshold}")
-            
-        except Exception as e:
-            raise VoiceEngineException(f"Microphone initialization failed: {e}")
-    
-    async def _initialize_recognition_engines(self):
-        """Initialize speech recognition engines."""
-        engine = self.settings.voice_recognition_engine
-        
-        if engine in ['vosk', 'hybrid'] or (engine == 'pocketsphinx' and self.settings.preferred_offline_engine == 'vosk'):
-            await self._initialize_vosk()
-        
-        if engine in ['pocketsphinx', 'hybrid'] or (engine == 'vosk' and self.settings.preferred_offline_engine == 'pocketsphinx'):
-            await self._initialize_pocketsphinx()
-        
-        if engine in ['google', 'hybrid']:
-            await self._initialize_google_speech()
-        
-        self.logger.info(f"🗣️ Voice recognition engine: {engine}")
-    
-    async def _initialize_vosk(self):
-        """Initialize Vosk offline speech recognition."""
-        try:
-            model_path = self.settings.offline_model_path
-            
-            if not model_path.exists():
-                self.logger.warning(f"⚠️ Vosk model not found at {model_path}")
-                self.logger.info("📥 Please download a Vosk model for offline recognition")
-                return
-            
-            self.vosk_model = Model(str(model_path))
-            self.vosk_recognizer = KaldiRecognizer(self.vosk_model, self.sample_rate)
-            
-            self.logger.info("✅ Vosk offline recognition initialized")
-            
-        except Exception as e:
-            self.logger.warning(f"⚠️ Vosk initialization failed: {e}")
-    
-    async def _initialize_pocketsphinx(self):
-        """Initialize PocketSphinx offline speech recognition."""
-        try:
-            model_path = self.settings.pocketsphinx_model_path
-            
-            if not model_path.exists():
-                self.logger.warning(f"⚠️ PocketSphinx model not found at {model_path}")
-                self.logger.info("📥 Using default PocketSphinx model")
-                # Use default model path from pocketsphinx
-                model_path = Path(get_model_path())
-            
-            # Store model path for later use
-            self.pocketsphinx_model = str(model_path)
-            
-            # Test if we can initialize LiveSpeech (we'll create actual recognizer when needed)
-            test_config = {
-                'verbose': False,
-                'sampling_rate': self.sample_rate,
-                'buffer_size': self.chunk_size,
-                'no_search': False,
-                'full_utt': False,
-                'hmm': os.path.join(self.pocketsphinx_model, 'en-us'),
-                'lm': os.path.join(self.pocketsphinx_model, 'en-us.lm.bin'),
-                'dict': os.path.join(self.pocketsphinx_model, 'cmudict-en-us.dict')
-            }
-            
-            # Just test if we can create it, don't actually start listening
-            # We'll create a new instance when needed
-            LiveSpeech(**test_config)
-            
-            self.logger.info("✅ PocketSphinx offline recognition initialized")
-            
-        except Exception as e:
-            self.logger.warning(f"⚠️ PocketSphinx initialization failed: {e}")
-    
-    async def _initialize_google_speech(self):
-        """Initialize Google Speech Recognition."""
-        try:
-            # Test Google Speech API availability
-            if self.settings.google_cloud_credentials_path:
-                import os
-                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = self.settings.google_cloud_credentials_path
-            
-            self.logger.info("✅ Google Speech Recognition configured")
-            
-        except Exception as e:
-            self.logger.warning(f"⚠️ Google Speech setup failed: {e}")
-    
-    async def _initialize_tts_engine(self):
-        """Initialize text-to-speech engine."""
-        try:
-            self.tts_engine = pyttsx3.init()
-            
-            # Configure voice settings
-            voices = self.tts_engine.getProperty('voices')
-            
-            # Select voice based on gender preference
-            selected_voice = None
-            if self.settings.voice_id:
-                # Use specific voice ID if provided
-                for voice in voices:
-                    if self.settings.voice_id in voice.id:
-                        selected_voice = voice.id
-                        break
+                    # No model found, use default path from config
+                    model_path = self.config.get("VOICE_RECOGNITION", "speech_recognition_model_path", fallback="")
             else:
-                # Select by gender
-                for voice in voices:
-                    if self.settings.voice_gender.lower() in voice.name.lower():
-                        selected_voice = voice.id
-                        break
-                
-                # Fallback to first available voice
-                if not selected_voice and voices:
-                    selected_voice = voices[0].id
-            
-            if selected_voice:
-                self.tts_engine.setProperty('voice', selected_voice)
-                self.logger.info(f"🗣️ TTS voice selected: {selected_voice}")
-            
-            # Set speech rate and volume
-            self.tts_engine.setProperty('rate', self.settings.speech_rate)
-            self.tts_engine.setProperty('volume', self.settings.volume)
-            
-            self.logger.info("✅ Text-to-speech engine initialized")
-            
-        except Exception as e:
-            self.logger.warning(f"⚠️ TTS initialization failed: {e}")
+                # No Vosk directory, use default path from config
+                model_path = self.config.get("VOICE_RECOGNITION", "speech_recognition_model_path", fallback="")
+        else:
+            # Use default path from config for other engines
+            model_path = self.config.get("VOICE_RECOGNITION", "speech_recognition_model_path", fallback="")
+        
+        # Get sample rate
+        sample_rate = self.config.get_int("VOICE_RECOGNITION", "sample_rate", fallback=16000)
+        
+        # Initialize speech recognizer
+        recognizer = SpeechRecognizer(str(model_path) if model_path else "", sample_rate)
+        
+        # Initialize if model path is provided
+        if model_path and Path(model_path).exists():
+            recognizer.initialize()
+        
+        return recognizer
     
-    async def start_listening(self):
-        """Start continuous voice listening for wake word and commands."""
-        if self.settings.dev_skip_audio_init:
-            self.logger.info("⚠️ Audio listening skipped (dev mode)")
+    def _initialize_tts_engine(self) -> TextToSpeech:
+        """Initialize the text-to-speech engine.
+        
+        Returns:
+            Initialized text-to-speech engine
+        """
+        # Get TTS model path
+        models_dir = Path(self.config.get("TEXT_TO_SPEECH", "models_dir", fallback="models"))
+        tts_engine = self.config.get("TEXT_TO_SPEECH", "engine", fallback="larynx")
+        
+        if tts_engine == "larynx":
+            # Try to find a Larynx model
+            larynx_dir = models_dir / "larynx"
+            if larynx_dir.exists():
+                # Find a voice directory
+                voice_dirs = [d for d in larynx_dir.iterdir() if d.is_dir() and d.name.startswith("larynx-") and not d.name.startswith("larynx-hifi-gan")]
+                if voice_dirs:
+                    model_path = larynx_dir
+                    voice = voice_dirs[0].name
+                else:
+                    # No voice found, use default path from config
+                    model_path = self.config.get("TEXT_TO_SPEECH", "model_path", fallback="")
+                    voice = self.config.get("TEXT_TO_SPEECH", "voice", fallback="default")
+            else:
+                # No Larynx directory, use default path from config
+                model_path = self.config.get("TEXT_TO_SPEECH", "model_path", fallback="")
+                voice = self.config.get("TEXT_TO_SPEECH", "voice", fallback="default")
+        else:
+            # Use default path from config for other engines
+            model_path = self.config.get("TEXT_TO_SPEECH", "model_path", fallback="")
+            voice = self.config.get("TEXT_TO_SPEECH", "voice", fallback="default")
+        
+        # Get sample rate
+        sample_rate = self.config.get_int("TEXT_TO_SPEECH", "sample_rate", fallback=22050)
+        
+        # Initialize TTS engine
+        tts = TextToSpeech(str(model_path) if model_path else "", voice, sample_rate)
+        
+        # Initialize if model path is provided
+        if model_path and Path(model_path).exists():
+            tts.initialize()
+        
+        return tts
+    
+    def start(self):
+        """Start the voice engine."""
+        if self.running:
+            logger.warning("Voice engine is already running")
             return
         
-        self.is_listening = True
-        self.logger.info("👂 Starting voice listening...")
+        self.running = True
         
-        try:
-            while self.is_listening:
-                await self._listen_for_wake_word()
-                if self.wake_word_detected:
-                    await self._listen_for_command()
-                    self.wake_word_detected = False
-                
-                # Small delay to prevent excessive CPU usage
-                await asyncio.sleep(0.1)
-                
-        except Exception as e:
-            self.logger.error(f"Error in voice listening loop: {e}")
-            self.error_count += 1
-        finally:
-            self.is_listening = False
+        # Start wake word detection thread
+        self.wake_word_thread = threading.Thread(target=self._wake_word_detection_loop)
+        self.wake_word_thread.daemon = True
+        self.wake_word_thread.start()
+        
+        # Start speech recognition thread
+        self.recognition_thread = threading.Thread(target=self._speech_recognition_loop)
+        self.recognition_thread.daemon = True
+        self.recognition_thread.start()
+        
+        # Start TTS thread
+        self.tts_thread = threading.Thread(target=self._tts_loop)
+        self.tts_thread.daemon = True
+        self.tts_thread.start()
+        
+        logger.info("Voice engine started")
     
-    async def _listen_for_wake_word(self):
-        """Listen for the wake word using continuous recognition."""
-        try:
-            with self.microphone as source:
-                # Listen for audio with timeout
-                audio = self.recognizer.listen(
-                    source, 
-                    timeout=1, 
-                    phrase_time_limit=self.settings.phrase_timeout
-                )
-            
-            # Recognize speech
-            text = await self._recognize_speech(audio)
-            
-            if text and self.settings.wake_phrase.lower() in text.lower():
-                self.wake_word_detected = True
-                self.voice_logger.log_wake_word()
-                
-                if self.on_wake_word_detected:
-                    await self.on_wake_word_detected()
-        
-        except sr.WaitTimeoutError:
-            # Normal timeout, continue listening
-            pass
-        except Exception as e:
-            self.logger.debug(f"Wake word detection error: {e}")
-    
-    async def _listen_for_command(self):
-        """Listen for voice command after wake word detection."""
-        try:
-            self.voice_logger.log_speech_start()
-            
-            with self.microphone as source:
-                # Listen for command with longer timeout
-                audio = self.recognizer.listen(
-                    source,
-                    timeout=self.settings.speech_timeout,
-                    phrase_time_limit=10  # Allow longer commands
-                )
-            
-            # Recognize the command
-            text = await self._recognize_speech(audio)
-            
-            if text:
-                self.voice_logger.log_speech_end(text)
-                self.recognition_count += 1
-                self.last_recognition_time = time.time()
-                
-                if self.on_speech_recognized:
-                    await self.on_speech_recognized(text)
-            else:
-                self.voice_logger.log_speech_timeout()
-                if self.on_speech_timeout:
-                    await self.on_speech_timeout()
-        
-        except sr.WaitTimeoutError:
-            self.voice_logger.log_speech_timeout()
-            if self.on_speech_timeout:
-                await self.on_speech_timeout()
-        except Exception as e:
-            self.logger.error(f"Command recognition error: {e}")
-            self.error_count += 1
-    
-    async def _recognize_speech(self, audio) -> Optional[str]:
-        """Recognize speech using configured engine(s)."""
-        engine = self.settings.voice_recognition_engine
-        
-        if engine == 'hybrid':
-            # Try offline first based on preferred engine, fallback to online
-            if self.settings.preferred_offline_engine == 'vosk':
-                text = await self._recognize_with_vosk(audio)
-                if not text:
-                    text = await self._recognize_with_pocketsphinx(audio)
-            else:  # preferred_offline_engine == 'pocketsphinx'
-                text = await self._recognize_with_pocketsphinx(audio)
-                if not text:
-                    text = await self._recognize_with_vosk(audio)
-            
-            # If both offline engines fail, try online
-            if not text:
-                text = await self._recognize_with_google(audio)
-            return text
-        elif engine == 'vosk':
-            return await self._recognize_with_vosk(audio)
-        elif engine == 'pocketsphinx':
-            return await self._recognize_with_pocketsphinx(audio)
-        elif engine == 'google':
-            return await self._recognize_with_google(audio)
-        
-        return None
-    
-    async def _recognize_with_vosk(self, audio) -> Optional[str]:
-        """Recognize speech using Vosk offline engine."""
-        if not self.vosk_recognizer:
-            return None
-        
-        try:
-            # Convert audio to the format Vosk expects
-            audio_data = np.frombuffer(audio.get_raw_data(), dtype=np.int16)
-            
-            # Process audio
-            if self.vosk_recognizer.AcceptWaveform(audio_data.tobytes()):
-                result = json.loads(self.vosk_recognizer.Result())
-                return result.get('text', '').strip()
-            
-        except Exception as e:
-            self.logger.debug(f"Vosk recognition error: {e}")
-        
-        return None
-    
-    async def _recognize_with_pocketsphinx(self, audio) -> Optional[str]:
-        """Recognize speech using PocketSphinx offline engine."""
-        if not self.pocketsphinx_model:
-            return None
-        
-        try:
-            # Convert audio to the format PocketSphinx expects
-            audio_data = np.frombuffer(audio.get_raw_data(), dtype=np.int16)
-            
-            # Create a temporary WAV file for PocketSphinx to process
-            import tempfile
-            import wave
-            import os.path
-            
-            # Create temp file with proper extension
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-                temp_filename = temp_file.name
-            
-            try:
-                # Write audio data to WAV file
-                with wave.open(temp_filename, 'wb') as wf:
-                    wf.setnchannels(self.channels)
-                    wf.setsampwidth(2)  # 16-bit audio
-                    wf.setframerate(self.sample_rate)
-                    wf.writeframes(audio_data.tobytes())
-                
-                # Configure PocketSphinx for file-based recognition
-                from pocketsphinx import AudioFile, Decoder
-                
-                # Ensure model paths exist and are valid
-                hmm_path = os.path.join(self.pocketsphinx_model, 'en-us')
-                lm_path = os.path.join(self.pocketsphinx_model, 'en-us.lm.bin')
-                dict_path = os.path.join(self.pocketsphinx_model, 'cmudict-en-us.dict')
-                
-                # Verify model files exist
-                if not os.path.exists(hmm_path):
-                    self.logger.warning(f"PocketSphinx acoustic model not found at {hmm_path}")
-                    return None
-                
-                if not os.path.exists(lm_path):
-                    self.logger.warning(f"PocketSphinx language model not found at {lm_path}")
-                    return None
-                
-                if not os.path.exists(dict_path):
-                    self.logger.warning(f"PocketSphinx dictionary not found at {dict_path}")
-                    return None
-                
-                # Configure decoder
-                config = {
-                    'verbose': False,
-                    'audio_file': temp_filename,
-                    'buffer_size': self.chunk_size,
-                    'no_search': False,
-                    'full_utt': True,
-                    'hmm': hmm_path,
-                    'lm': lm_path,
-                    'dict': dict_path
-                }
-                
-                # Process audio file
-                audio_file = AudioFile(**config)
-                result = ""
-                
-                # Get the best hypothesis
-                for phrase in audio_file:
-                    if phrase:
-                        result = str(phrase)
-                        break
-                
-                return result.strip() if result else None
-            
-            finally:
-                # Clean up temporary file
-                try:
-                    if os.path.exists(temp_filename):
-                        os.unlink(temp_filename)
-                except Exception as e:
-                    self.logger.debug(f"Error removing temporary file: {e}")
-            
-        except Exception as e:
-            self.logger.debug(f"PocketSphinx recognition error: {e}")
-            return None
-    
-    async def _recognize_with_google(self, audio) -> Optional[str]:
-        """Recognize speech using Google Speech Recognition."""
-        try:
-            # Use Google Speech Recognition
-            text = self.recognizer.recognize_google(audio)
-            return text.strip() if text else None
-            
-        except sr.UnknownValueError:
-            # Speech was unintelligible
-            return None
-        except sr.RequestError as e:
-            self.logger.warning(f"Google Speech API error: {e}")
-            return None
-        except Exception as e:
-            self.logger.debug(f"Google recognition error: {e}")
-            return None
-    
-    async def speak(self, text: str):
-        """Convert text to speech and play it."""
-        if not self.tts_engine or self.settings.dev_skip_audio_init:
-            self.logger.info(f"🔊 TTS (simulated): {text}")
+    def stop(self):
+        """Stop the voice engine."""
+        if not self.running:
+            logger.warning("Voice engine is not running")
             return
         
-        try:
-            self.is_speaking = True
-            self.voice_logger.log_tts_start(text)
-            
-            # Use thread to avoid blocking
-            def speak_thread():
-                with self.tts_lock:
-                    self.tts_engine.say(text)
-                    self.tts_engine.runAndWait()
-            
-            # Run TTS in executor to avoid blocking
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, speak_thread)
-            
-            self.voice_logger.log_tts_end()
-            
-        except Exception as e:
-            self.logger.error(f"TTS error: {e}")
-            self.voice_logger.log_audio_error(str(e))
-        finally:
-            self.is_speaking = False
-    
-    async def play_activation_sound(self):
-        """Play a sound to indicate activation."""
-        try:
-            # Generate a simple activation tone
-            duration = 0.2  # seconds
-            frequency = 800  # Hz
-            
-            t = np.linspace(0, duration, int(self.sample_rate * duration))
-            tone = 0.3 * np.sin(2 * np.pi * frequency * t)
-            
-            # Fade in/out to avoid clicks
-            fade_samples = int(0.01 * self.sample_rate)
-            tone[:fade_samples] *= np.linspace(0, 1, fade_samples)
-            tone[-fade_samples:] *= np.linspace(1, 0, fade_samples)
-            
-            # Play the tone
-            sd.play(tone, self.sample_rate)
-            
-        except Exception as e:
-            self.logger.debug(f"Activation sound error: {e}")
-    
-    def stop_listening(self):
-        """Stop voice listening."""
-        self.is_listening = False
-        self.logger.info("🛑 Voice listening stopped")
-    
-    async def update_settings(self, settings: Settings):
-        """Update voice engine settings."""
-        self.settings = settings
+        self.running = False
         
-        # Update recognizer settings
-        if self.recognizer:
-            if settings.dynamic_energy_threshold:
-                # Re-calibrate for ambient noise
-                try:
-                    with self.microphone as source:
-                        self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
-                except:
-                    pass
-            else:
-                self.recognizer.energy_threshold = settings.energy_threshold
+        # Wait for threads to finish
+        if self.wake_word_thread and self.wake_word_thread.is_alive():
+            self.wake_word_thread.join(timeout=1.0)
         
-        # Update TTS settings
+        if self.recognition_thread and self.recognition_thread.is_alive():
+            self.recognition_thread.join(timeout=1.0)
+        
+        if self.tts_thread and self.tts_thread.is_alive():
+            self.tts_thread.join(timeout=1.0)
+        
+        # Release resources
+        if self.wake_word_detector:
+            self.wake_word_detector.release()
+        
+        if self.speech_recognizer:
+            self.speech_recognizer.release()
+        
         if self.tts_engine:
+            self.tts_engine.release()
+        
+        logger.info("Voice engine stopped")
+    
+    def _wake_word_detection_loop(self):
+        """Wake word detection loop."""
+        if not self.wake_word_detector or not self.wake_word_detector.is_active():
+            logger.warning("Wake word detector is not active")
+            return
+        
+        frame_length = self.wake_word_detector.get_frame_length()
+        sample_rate = self.wake_word_detector.get_sample_rate()
+        
+        logger.info(f"Wake word detection started (frame_length={frame_length}, sample_rate={sample_rate})")
+        
+        while self.running:
             try:
-                self.tts_engine.setProperty('rate', settings.speech_rate)
-                self.tts_engine.setProperty('volume', settings.volume)
-            except:
-                pass
-        
-        self.logger.info("⚙️ Voice engine settings updated")
-    
-    def get_status(self) -> Dict[str, Any]:
-        """Get current status of the voice engine."""
-        available_engines = []
-        if self.vosk_recognizer:
-            available_engines.append('vosk')
-        if self.pocketsphinx_model:
-            available_engines.append('pocketsphinx')
-        available_engines.append('google')  # Always available as fallback
-        
-        return {
-            'is_listening': self.is_listening,
-            'is_speaking': self.is_speaking,
-            'wake_word_detected': self.wake_word_detected,
-            'recognition_count': self.recognition_count,
-            'error_count': self.error_count,
-            'energy_threshold': getattr(self.recognizer, 'energy_threshold', None),
-            'available_engines': available_engines,
-            'current_engine': self.settings.voice_recognition_engine,
-            'preferred_offline_engine': self.settings.preferred_offline_engine
-        }
-    
-    async def cleanup(self):
-        """Cleanup voice engine resources."""
-        try:
-            self.logger.info("🧹 Cleaning up voice engine...")
-            
-            self.stop_listening()
-            
-            if self.tts_engine:
+                # Skip if we're already listening
+                if self.is_listening or self.is_speaking:
+                    time.sleep(0.1)
+                    continue
+                
+                # Get audio frame from queue
                 try:
-                    self.tts_engine.stop()
-                except:
-                    pass
-            
-            # Clear audio queue
-            while not self.audio_queue.empty():
+                    audio_frame = self.audio_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                
+                # Process audio frame
+                if len(audio_frame) != frame_length:
+                    # Resample if needed
+                    # This is a simple implementation, in practice you would use a proper resampler
+                    if len(audio_frame) > frame_length:
+                        audio_frame = audio_frame[:frame_length]
+                    else:
+                        # Pad with zeros
+                        audio_frame = np.pad(audio_frame, (0, frame_length - len(audio_frame)))
+                
+                # Convert to int16 if needed
+                if audio_frame.dtype != np.int16:
+                    audio_frame = (audio_frame * 32767).astype(np.int16)
+                
+                # Detect wake word
+                wake_word_detected = self.wake_word_detector.process(audio_frame)
+                
+                if wake_word_detected:
+                    logger.info("Wake word detected")
+                    self.wake_word_detected = True
+                    self.is_listening = True
+                    
+                    # Call callback if provided
+                    if self.on_wake_word_detected:
+                        self.on_wake_word_detected()
+            except Exception as e:
+                logger.error(f"Error in wake word detection loop: {e}")
+                time.sleep(0.1)
+        
+        logger.info("Wake word detection stopped")
+    
+    def _speech_recognition_loop(self):
+        """Speech recognition loop."""
+        if not self.speech_recognizer or not self.speech_recognizer.is_active():
+            logger.warning("Speech recognizer is not active")
+            return
+        
+        sample_rate = self.speech_recognizer.get_sample_rate()
+        
+        logger.info(f"Speech recognition started (sample_rate={sample_rate})")
+        
+        # Variables for speech recognition
+        speech_timeout = self.config.get_float("VOICE_RECOGNITION", "speech_timeout", fallback=5.0)
+        silence_threshold = self.config.get_float("VOICE_RECOGNITION", "silence_threshold", fallback=0.1)
+        silence_duration = self.config.get_float("VOICE_RECOGNITION", "silence_duration", fallback=1.0)
+        
+        # Buffers for speech recognition
+        audio_buffer = []
+        silence_start = None
+        speech_start = None
+        
+        while self.running:
+            try:
+                # Skip if we're not listening or we're speaking
+                if not self.is_listening or self.is_speaking:
+                    time.sleep(0.1)
+                    continue
+                
+                # Get audio frame from queue
                 try:
-                    self.audio_queue.get_nowait()
-                except:
-                    break
+                    audio_frame = self.audio_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                
+                # Add to buffer
+                audio_buffer.append(audio_frame)
+                
+                # Check if we've reached the speech timeout
+                if speech_start and time.time() - speech_start > speech_timeout:
+                    logger.info("Speech timeout reached")
+                    
+                    # Process the audio buffer
+                    audio_data = np.concatenate(audio_buffer)
+                    
+                    # Convert to int16 if needed
+                    if audio_data.dtype != np.int16:
+                        audio_data = (audio_data * 32767).astype(np.int16)
+                    
+                    # Recognize speech
+                    text = self.speech_recognizer.process(audio_data)
+                    
+                    # Reset buffers
+                    audio_buffer = []
+                    silence_start = None
+                    speech_start = None
+                    
+                    # Reset listening state
+                    self.is_listening = False
+                    
+                    # Call callback if provided
+                    if text and self.on_speech_recognized:
+                        self.on_speech_recognized(text)
+                    elif self.on_speech_not_recognized:
+                        self.on_speech_not_recognized()
+                    
+                    continue
+                
+                # Check for silence
+                energy = np.mean(np.abs(audio_frame))
+                
+                if energy < silence_threshold:
+                    # Silence detected
+                    if silence_start is None:
+                        silence_start = time.time()
+                    elif time.time() - silence_start > silence_duration:
+                        # Silence duration reached, process the audio buffer
+                        if audio_buffer and speech_start:
+                            logger.info("Silence duration reached, processing speech")
+                            
+                            # Process the audio buffer
+                            audio_data = np.concatenate(audio_buffer)
+                            
+                            # Convert to int16 if needed
+                            if audio_data.dtype != np.int16:
+                                audio_data = (audio_data * 32767).astype(np.int16)
+                            
+                            # Recognize speech
+                            text = self.speech_recognizer.process(audio_data)
+                            
+                            # Reset buffers
+                            audio_buffer = []
+                            silence_start = None
+                            speech_start = None
+                            
+                            # Reset listening state
+                            self.is_listening = False
+                            
+                            # Call callback if provided
+                            if text and self.on_speech_recognized:
+                                self.on_speech_recognized(text)
+                            elif self.on_speech_not_recognized:
+                                self.on_speech_not_recognized()
+                else:
+                    # Speech detected
+                    silence_start = None
+                    if speech_start is None:
+                        speech_start = time.time()
+            except Exception as e:
+                logger.error(f"Error in speech recognition loop: {e}")
+                time.sleep(0.1)
+        
+        logger.info("Speech recognition stopped")
+    
+    def _tts_loop(self):
+        """Text-to-speech loop."""
+        if not self.tts_engine:
+            logger.warning("TTS engine is not initialized")
+            return
+        
+        logger.info("TTS loop started")
+        
+        while self.running:
+            try:
+                # Get text from queue
+                try:
+                    text = self.tts_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                
+                # Set speaking state
+                self.is_speaking = True
+                
+                # Call callback if provided
+                if self.on_tts_started:
+                    self.on_tts_started(text)
+                
+                # Synthesize speech
+                audio_data = self.tts_engine.synthesize(text)
+                
+                # TODO: Play audio data
+                # This would typically involve sending the audio data to an audio output device
+                # For now, we just sleep to simulate the speech duration
+                time.sleep(len(audio_data) / self.tts_engine.get_sample_rate())
+                
+                # Reset speaking state
+                self.is_speaking = False
+                
+                # Call callback if provided
+                if self.on_tts_finished:
+                    self.on_tts_finished()
+            except Exception as e:
+                logger.error(f"Error in TTS loop: {e}")
+                time.sleep(0.1)
+        
+        logger.info("TTS loop stopped")
+    
+    def process_audio(self, audio_data: np.ndarray):
+        """Process audio data.
+        
+        Args:
+            audio_data: Audio data as numpy array
+        """
+        # Add to audio queue
+        self.audio_queue.put(audio_data)
+    
+    def speak(self, text: str):
+        """Speak text.
+        
+        Args:
+            text: Text to speak
+        """
+        # Add to TTS queue
+        self.tts_queue.put(text)
+    
+    def set_wake_word_callback(self, callback: Callable[[], None]):
+        """Set callback for wake word detection.
+        
+        Args:
+            callback: Callback function
+        """
+        self.on_wake_word_detected = callback
+    
+    def set_speech_recognized_callback(self, callback: Callable[[str], None]):
+        """Set callback for speech recognition.
+        
+        Args:
+            callback: Callback function
+        """
+        self.on_speech_recognized = callback
+    
+    def set_speech_not_recognized_callback(self, callback: Callable[[], None]):
+        """Set callback for speech not recognized.
+        
+        Args:
+            callback: Callback function
+        """
+        self.on_speech_not_recognized = callback
+    
+    def set_tts_started_callback(self, callback: Callable[[str], None]):
+        """Set callback for TTS started.
+        
+        Args:
+            callback: Callback function
+        """
+        self.on_tts_started = callback
+    
+    def set_tts_finished_callback(self, callback: Callable[[], None]):
+        """Set callback for TTS finished.
+        
+        Args:
+            callback: Callback function
+        """
+        self.on_tts_finished = callback
+    
+    def is_wake_word_detected(self) -> bool:
+        """Check if wake word is detected.
+        
+        Returns:
+            True if wake word is detected, False otherwise
+        """
+        return self.wake_word_detected
+    
+    def reset_wake_word_detection(self):
+        """Reset wake word detection."""
+        self.wake_word_detected = False
+    
+    def is_listening_active(self) -> bool:
+        """Check if listening is active.
+        
+        Returns:
+            True if listening is active, False otherwise
+        """
+        return self.is_listening
+    
+    def is_speaking_active(self) -> bool:
+        """Check if speaking is active.
+        
+        Returns:
+            True if speaking is active, False otherwise
+        """
+        return self.is_speaking
+    
+    def set_tts_voice(self, voice: str) -> bool:
+        """Set TTS voice.
+        
+        Args:
+            voice: Voice name
             
-            self.logger.info("✅ Voice engine cleanup completed")
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.tts_engine:
+            logger.warning("TTS engine is not initialized")
+            return False
+        
+        return self.tts_engine.set_voice(voice)
+    
+    def get_tts_voice(self) -> str:
+        """Get current TTS voice.
+        
+        Returns:
+            Voice name
+        """
+        if not self.tts_engine:
+            logger.warning("TTS engine is not initialized")
+            return ""
+        
+        return self.tts_engine.get_voice()
+    
+    def set_wake_word_sensitivity(self, sensitivity: float) -> bool:
+        """Set wake word sensitivity.
+        
+        Args:
+            sensitivity: Sensitivity value between 0.0 and 1.0
             
-        except Exception as e:
-            self.logger.error(f"Error during voice engine cleanup: {e}")
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.wake_word_detector:
+            logger.warning("Wake word detector is not initialized")
+            return False
+        
+        return self.wake_word_detector.set_sensitivity(sensitivity)
