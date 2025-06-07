@@ -16,6 +16,8 @@ import { cn } from '@utils/cn'
 
 interface StatusBarProps {
   className?: string
+  isElectron?: boolean
+  connectionType?: 'websocket' | 'grpc'
 }
 
 interface SystemMetrics {
@@ -28,7 +30,7 @@ interface SystemMetrics {
   }
 }
 
-const StatusBar: React.FC<StatusBarProps> = ({ className }) => {
+const StatusBar: React.FC<StatusBarProps> = ({ className, isElectron, connectionType }) => {
   const { connectionStatus, config, isListening } = useAppStore()
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isExpanded, setIsExpanded] = useState(false)
@@ -199,6 +201,16 @@ const StatusBar: React.FC<StatusBarProps> = ({ className }) => {
             )} />
             <span className={cn('capitalize', getStatusColor(connectionStatus))}>
               {connectionStatus}
+              {connectionType && (
+                <span className="text-xs ml-1 text-gray-500 dark:text-gray-400">
+                  ({connectionType})
+                </span>
+              )}
+              {isElectron && (
+                <span className="text-xs ml-1 text-gray-500 dark:text-gray-400">
+                  [Electron]
+                </span>
+              )}
             </span>
           </div>
 

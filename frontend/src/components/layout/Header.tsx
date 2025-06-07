@@ -21,9 +21,10 @@ import { cn } from '@utils/cn'
 interface HeaderProps {
   className?: string
   onMenuToggle?: () => void
+  isElectron?: boolean
 }
 
-const Header: React.FC<HeaderProps> = ({ className, onMenuToggle }) => {
+const Header: React.FC<HeaderProps> = ({ className, onMenuToggle, isElectron }) => {
   const { 
     currentUser, 
     theme, 
@@ -174,12 +175,17 @@ const Header: React.FC<HeaderProps> = ({ className, onMenuToggle }) => {
         </AnimatePresence>
 
         {/* Connection Status */}
-        <div className="flex items-center space-x-2">
-          <connectionInfo.icon className={cn('w-5 h-5', connectionInfo.color)} />
-          <span className={cn('text-sm', connectionInfo.color)}>
-            {connectionInfo.label}
-          </span>
-        </div>
+          <div className="flex items-center space-x-2">
+            <connectionInfo.icon className={cn('w-5 h-5', connectionInfo.color)} />
+            <span className={cn('text-sm', connectionInfo.color)}>
+              {connectionInfo.label}
+              {isElectron && (
+                <span className="text-xs ml-1 text-gray-500 dark:text-gray-400">
+                  [Electron]
+                </span>
+              )}
+            </span>
+          </div>
       </div>
 
       {/* Right Section */}

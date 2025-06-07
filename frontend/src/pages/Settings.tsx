@@ -19,6 +19,7 @@ import type { UserPreferences, Theme } from '@/types'
 
 interface SettingsProps {
   className?: string
+  isElectron?: boolean
 }
 
 interface SettingsSectionProps {
@@ -108,7 +109,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({
   )
 }
 
-const Settings: React.FC<SettingsProps> = ({ className }) => {
+const Settings: React.FC<SettingsProps> = ({ className, isElectron }) => {
   const { user, config, updateUserPreferences, updateTheme } = useAppStore()
   const [preferences, setPreferences] = useState<UserPreferences>(user?.preferences || {
     voice: {
@@ -619,6 +620,46 @@ const Settings: React.FC<SettingsProps> = ({ className }) => {
               label="Start on System Boot"
               description="Launch Jenna when your computer starts"
             />
+            
+            {isElectron && (
+              <>
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    Connection Type
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { value: 'grpc', label: 'gRPC (Recommended)' },
+                      { value: 'websocket', label: 'WebSocket' },
+                    ].map((type) => (
+                      <button
+                        key={type.value}
+                        type="button"
+                        className={cn(
+                          'flex items-center justify-center px-3 py-2 border rounded-lg',
+                          preferences.connection?.type === type.value
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                        )}
+                        onClick={() => handlePreferenceChange('connection', 'type', type.value)}
+                      >
+                        {type.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    gRPC provides faster performance for desktop app. WebSocket is used as fallback.
+                  </p>
+                </div>
+                
+                <Toggle
+                  enabled={preferences.desktopNotifications || false}
+                  onChange={(enabled) => setPreferences({ ...preferences, desktopNotifications: enabled })}
+                  label="Desktop Notifications"
+                  description="Show system notifications for important events"
+                />
+              </>
+            )}
 
             <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
               <div className="flex items-center justify-between">

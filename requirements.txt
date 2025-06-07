@@ -1,4 +1,4 @@
-# Core dependencies
+# Core dependencies 🧠
 python-dotenv>=1.0.0 #For environment variables
 sounddevice==0.4.6 #For audio input/output
 pydantic>=2.0.0 #For data validation
@@ -6,48 +6,52 @@ pydantic-settings>=2.0.0 #For settings management
 asyncio>=3.4.3 #For asyncio support
 aiofiles>=23.1.0 #For async file I/O
 typing-extensions>=4.7.1 #For typing extensions
-google-cloud-speech==2.21.0 #For Google Cloud Speech-to-Text
 pyttsx3==2.90 #For text-to-speech
+plyer==2.1.0 #For native notifications
+watchdog==3.0.0 #For file system monitoring
 
-# AI and NLP
+# AI and NLP 🤖
 nltk==3.8.1 #For tokenization
-torch==2.0.1  #For PyTorch
+torch==2.0.1 #For PyTorch
 numpy==1.24.3 #For numerical operations
 scipy==1.11.2 #For scientific computing
+transformers==4.33.2 #For huggingface transformers
 
-# Audio processing
+# Audio processing 🎵
 pyaudio>=0.2.13 #For audio input/output
 librosa>=0.10.0 #For audio analysis
-soundfile>=0.12.1   #For audio file I/O
+soundfile>=0.12.1 #For audio file I/O
 
-# Voice recognition
+# Voice recognition 🎤
 vosk>=0.3.45 #For offline voice recognition
-pocketsphinx>=5.0.0 #For offline voice recognition
+pocketsphinx==0.1.15 #For offline voice recognition
 speechrecognition>=3.10.0 #For offline voice recognition
 
-# Text-to-speech
+# Text-to-speech 🗣️
 larynx-tts>=0.6.2 #For offline text-to-speech
 espeak-phonemizer>=1.1.0 #For offline text-to-speech
 
-# Natural language understanding
+# Natural language understanding 💬
 rasa>=3.6.2 #For natural language understanding
 spacy>=3.5.3 #For natural language understanding
 rasa-sdk>=3.6.0 #For natural language understanding
 
-# AI and machine learning
-openai>=0.27.8 #For OpenAI API
+# AI and machine learning 🧪
+openai>=0.27.8 #For OpenAI API (optional)
 tensorflow>=2.12.0 #For TensorFlow
 onnxruntime>=1.15.0 #For ONNX runtime
-transformers>=4.30.2 #For transformers
 
-# Rust integration
+# Free AI chat integration 💅
+tgpt>=0.5.0 #For free ChatGPT functionality without API keys
+
+# Rust integration 🦀
 maturin>=1.0.0 #For Rust integration
 
-# Setup scripts dependencies
-requests>=2.31.0 #For setup scripts
+# Setup scripts dependencies 🛠️
+requests==2.31.0 #For HTTP requests
 tqdm>=4.65.0 #For progress bars
 
-# Development and testing
+# Development and testing 🧪
 pytest>=7.3.1 #For testing
 pytest-asyncio>=0.21.0 #For async testing
 black>=23.3.0 #For code formatting
@@ -55,33 +59,45 @@ isort>=5.12.0 #For code formatting
 mypy>=1.3.0 #For static type checking
 flake8>=6.0.0 #For code linting
 
-# Documentation
+# Documentation 📚
 sphinx>=7.0.1 #For documentation generation
 sphinx-rtd-theme>=1.2.1 #For Read the Docs theme
 
-# Utilities
+# Utilities 🔧
 click>=8.1.3 #For command-line interface
 rich>=13.4.2 #For rich text formatting
 pytz>=2023.3 #For timezone support
 
-# System integration
-psutil>=5.9.5 #For system monitoring
+# System integration 💻
+psutil==5.9.5 #For system monitoring
 platform-dirs>=3.10.0 #For cross-platform paths
+pywin32==306 #For Windows integration (Windows only)
 
-# Security
+# Security 🔒
 cryptography>=41.0.1 #For secure key management
 jwt>=2.7.0 #For JSON Web Tokens
 passlib>=1.7.4 #For password hashing
 
-# Database
-sqlalchemy>=2.0.16 #For database access
-alembic>=1.11.1 #For database migrations
+# Database 🗄️
+sqlalchemy==2.0.20 #For database access
+alembic==1.12.0 #For database migrations
 
-# Web integration
-aiohttp>=3.8.4 #For WebSocket support
-fastapi==0.103.1 #For WebSocket support
-uvicorn==0.23.2 #For ASGI support
+# Web and API integration 🌐
+fastapi==0.103.1 #For API endpoints
+uvicorn==0.23.2 #For ASGI server
 websockets==11.0.3 #For WebSocket support
-requests==2.31.0 #For WebSocket support
-httpx==0.24.1 #For httpx support
-aiohttp==3.8.5 #For aiohttp support
+httpx==0.24.1 #For HTTP client
+aiohttp==3.8.5 #For async HTTP
+
+# gRPC for efficient communication 📡
+grpcio>=1.54.0 #For gRPC support
+grpcio-tools>=1.54.0 #For gRPC code generation
+protobuf>=4.23.0 #For Protocol Buffers
+
+# Image and Media Processing 🖼️
+Pillow==10.0.0 #For image processing
+pygame==2.5.2 #For audio playback and simple graphics
+opencv-python==4.8.0.76 #For computer vision
+
+# Emoji support 😎
+emoji>=2.2.0 #For emoji handling and display

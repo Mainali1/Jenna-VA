@@ -1,0 +1,24 @@
+# Calculator Plugin Manifest
+
+name = "calculator"
+version = "0.1.0"
+description = "A simple calculator plugin for Jenna VA"
+author = "Jenna VA Team"
+license = "MIT"
+
+# Plugin requirements
+requires_api = false
+requires_internet = false
+requires_permissions = []
+
+# Plugin dependencies
+dependencies = {}
+
+# Plugin entry points
+entry_point = "main"
+python_module = "calculator_plugin"
+
+# Plugin settings schema
+[settings_schema]
+default_precision = { type = "integer", default = 2, description = "Default decimal precision for calculations" }
+scientific_notation = { type = "boolean", default = false, description = "Use scientific notation for large numbers" }

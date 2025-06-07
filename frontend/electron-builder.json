@@ -1,0 +1,59 @@
+{
+  "appId": "com.jenna.voiceassistant",
+  "productName": "Jenna Voice Assistant",
+  "copyright": "Copyright © 2023",
+  "directories": {
+    "output": "dist_electron",
+    "buildResources": "assets"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "assets/**/*",
+    "package.json"
+  ],
+  "extraMetadata": {
+    "main": "electron/main.js"
+  },
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "your-github-username",
+      "repo": "Jenna-VA"
+    }
+  ],
+  "win": {
+    "target": [
+      "nsis"
+    ],
+    "icon": "assets/icons/icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Jenna Voice Assistant"
+  },
+  "mac": {
+    "target": [
+      "dmg"
+    ],
+    "icon": "assets/icons/icon.icns",
+    "category": "public.app-category.productivity"
+  },
+  "linux": {
+    "target": [
+      "AppImage",
+      "deb"
+    ],
+    "icon": "assets/icons",
+    "category": "Utility"
+  },
+  "protocols": {
+    "name": "jenna-protocol",
+    "schemes": [
+      "jenna"
+    ]
+  }
+}

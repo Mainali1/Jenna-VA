@@ -18,10 +18,12 @@ import Help from '@pages/Help'
 // Hooks
 import { useAppStore } from '@store/appStore'
 import { useWebSocket } from '@hooks/useWebSocket'
+import { useGrpcStream } from '@hooks/useGrpcStream'
 import { useKeyboardShortcuts } from '@hooks/useKeyboardShortcuts'
 
 // Utils
 import { cn } from '@utils/cn'
+import { isElectron } from '@utils/electronBridge'
 
 // Types
 import type { AppStatus } from '@types/app'
@@ -36,18 +38,51 @@ const App: React.FC = () => {
     isListening, 
     currentUser,
     theme,
+    config,
     setStatus,
     setConnectionStatus,
     initializeApp 
   } = useAppStore()
   
-  // WebSocket connection
+  // Determine if we should use gRPC or WebSocket
+  // In Electron mode, respect user preference if set, otherwise default to gRPC
+  const useGrpc = isElectron() 
+    ? (currentUser?.preferences?.connection?.type === 'websocket' ? false : true)
+    : config?.features?.useGrpc
+  
+  // gRPC connection (used in Electron or if enabled in config)
+  const {
+    isConnected: isGrpcConnected,
+    connectionState: grpcConnectionState,
+    sendMessage: sendGrpcMessage,
+    lastMessage: lastGrpcMessage
+  } = useGrpcStream({
+    enabled: useGrpc,
+    onMessage: (data) => {
+      // Handle incoming gRPC messages
+      console.log('gRPC message:', data)
+    },
+    onConnect: () => {
+      setConnectionStatus('connected')
+    },
+    onDisconnect: () => {
+      setConnectionStatus('disconnected')
+    },
+    onError: (error) => {
+      console.error('gRPC error:', error)
+      setConnectionStatus('error')
+    }
+  })
+  
+  // WebSocket connection (used in web mode)
   const { 
-    isConnected, 
-    connectionState, 
-    sendMessage 
+    isConnected: isWsConnected, 
+    connectionState: wsConnectionState, 
+    sendMessage: sendWsMessage,
+    lastMessage: lastWsMessage
   } = useWebSocket({
-    url: 'ws://localhost:8080/ws',
+    url: config?.wsUrl || 'ws://localhost:8080/ws',
+    enabled: !useGrpc,
     onMessage: (data) => {
       // Handle incoming WebSocket messages
       console.log('WebSocket message:', data)
@@ -63,6 +98,20 @@ const App: React.FC = () => {
       setConnectionStatus('error')
     }
   })
+  
+  // Combined connection state
+  const isConnected = useGrpc ? isGrpcConnected : isWsConnected
+  const connectionState = useGrpc ? grpcConnectionState : wsConnectionState
+  const lastMessage = useGrpc ? lastGrpcMessage : lastWsMessage
+  
+  // Unified send message function
+  const sendMessage = (message: any) => {
+    if (useGrpc) {
+      sendGrpcMessage(message)
+    } else {
+      sendWsMessage(message)
+    }
+  }
   
   // Keyboard shortcuts
   useKeyboardShortcuts({
@@ -187,6 +236,7 @@ const App: React.FC = () => {
         onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
         isConnected={isConnected}
         isListening={isListening}
+        isElectron={isElectron()}
       />
       
       <div className="flex flex-1 overflow-hidden">
@@ -232,7 +282,12 @@ const App: React.FC = () => {
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <Chat />
+                    <Chat 
+                      sendMessage={sendMessage} 
+                      isConnected={isConnected}
+                      connectionType={useGrpc ? 'grpc' : 'websocket'}
+                      isElectron={isElectron()}
+                    />
                   </motion.div>
                 } 
               />
@@ -277,7 +332,7 @@ const App: React.FC = () => {
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <Settings />
+                    <Settings isElectron={isElectron()} />
                   </motion.div>
                 } 
               />
@@ -336,6 +391,8 @@ const App: React.FC = () => {
         isConnected={isConnected}
         connectionState={connectionState}
         isListening={isListening}
+        connectionType={useGrpc ? 'gRPC' : 'WebSocket'}
+        isElectron={isElectron()}
       />
     </div>
   )

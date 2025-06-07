@@ -19,6 +19,10 @@ import type { Message, Conversation } from '@/types'
 
 interface ChatProps {
   className?: string
+  isConnected?: boolean
+  connectionType?: 'grpc' | 'websocket'
+  isElectron?: boolean
+  sendMessage?: (message: any) => void
 }
 
 interface MessageBubbleProps {
@@ -200,16 +204,25 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   )
 }
 
-const Chat: React.FC<ChatProps> = ({ className }) => {
+const Chat: React.FC<ChatProps> = ({ 
+  className, 
+  isConnected, 
+  connectionType, 
+  isElectron,
+  sendMessage: externalSendMessage 
+}) => {
   const { isListening, startListening, stopListening } = useAppStore()
   const {
     currentConversation,
     isLoading,
     isTyping,
-    sendMessage,
+    sendMessage: internalSendMessage,
     createConversation,
     deleteConversation,
   } = useConversationStore()
+  
+  // Use external sendMessage if provided (from App), otherwise use internal
+  const sendMessageFn = externalSendMessage || internalSendMessage
 
   const [inputValue, setInputValue] = useState('')
   const [isRecording, setIsRecording] = useState(false)
@@ -243,12 +256,20 @@ const Chat: React.FC<ChatProps> = ({ className }) => {
 
     const message = inputValue.trim()
     setInputValue('')
-
-    if (!currentConversation) {
-      await createConversation('New Chat')
+    
+    // If we're using external sendMessage (gRPC/WebSocket), send through that channel
+    if (externalSendMessage && isConnected) {
+      externalSendMessage({ type: 'chat_message', content: message })
     }
 
-    await sendMessage(message)
+    // Only use internal sendMessage if external is not available
+    if (!externalSendMessage || !isConnected) {
+      if (!currentConversation) {
+        await createConversation(message)
+      } else {
+        await internalSendMessage(message)
+      }
+    }
   }
 
   // Handle key press
@@ -315,6 +336,22 @@ const Chat: React.FC<ChatProps> = ({ className }) => {
             <span className="text-sm text-gray-500 dark:text-gray-400">
               {messages.length} messages
             </span>
+          )}
+          
+          {/* Connection status indicator */}
+          {isElectron && (
+            <div className="flex items-center ml-2">
+              <span 
+                className={cn(
+                  "inline-block w-2 h-2 rounded-full mr-1",
+                  isConnected ? "bg-green-500" : "bg-red-500"
+                )}
+              />
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {connectionType?.toUpperCase()}
+                {isElectron && " [Electron]"}
+              </span>
+            </div>
           )}
         </div>
         

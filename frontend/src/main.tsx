@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
+import { BrowserRouter, HashRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 
@@ -84,6 +84,9 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+// Check if we're running in Electron
+const isElectron = window.__IS_ELECTRON__ === true
+
 // Initialize the application
 const initializeApp = async () => {
   try {
@@ -94,10 +97,11 @@ const initializeApp = async () => {
       console.log('🚀 Jenna Voice Assistant - Development Mode')
       console.log('📦 Version:', __APP_VERSION__)
       console.log('🏗️ Build Date:', __BUILD_DATE__)
+      console.log('🖥️ Running in Electron:', isElectron ? 'Yes' : 'No')
     }
 
-    // Initialize service worker for PWA
-    if ('serviceWorker' in navigator && !isDev) {
+    // Initialize service worker for PWA (only in web mode, not in Electron)
+    if ('serviceWorker' in navigator && !isDev && !isElectron) {
       try {
         await navigator.serviceWorker.register('/sw.js')
         console.log('Service Worker registered successfully')
@@ -126,11 +130,14 @@ const initializeApp = async () => {
     // Render the application
     const root = ReactDOM.createRoot(document.getElementById('root')!)
     
+    // Use HashRouter for Electron and BrowserRouter for web
+    const Router = isElectron ? HashRouter : BrowserRouter
+    
     root.render(
       <React.StrictMode>
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
-            <BrowserRouter>
+            <Router>
               <App />
               <Toaster
                 position="top-right"
@@ -155,7 +162,7 @@ const initializeApp = async () => {
                   },
                 }}
               />
-            </BrowserRouter>
+            </Router>
           </QueryClientProvider>
         </ErrorBoundary>
       </React.StrictMode>
@@ -229,4 +236,11 @@ window.addEventListener('unhandledrejection', (event) => {
 if (import.meta.env.DEV) {
   // Make query client available in dev tools
   ;(window as any).__REACT_QUERY_CLIENT__ = queryClient
+}
+
+// Extend Window interface to include Electron flag
+declare global {
+  interface Window {
+    __IS_ELECTRON__?: boolean;
+  }
 }

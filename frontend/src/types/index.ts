@@ -72,6 +72,11 @@ export interface UserPreferences {
   notifications: NotificationSettings
   privacy: PrivacySettings
   shortcuts: KeyboardShortcuts
+  appearance?: AppearanceSettings
+  connection?: ConnectionSettings
+  autoUpdate?: boolean
+  startOnBoot?: boolean
+  desktopNotifications?: boolean
 }
 
 export interface VoiceSettings {
@@ -98,6 +103,18 @@ export interface PrivacySettings {
   shareAnalytics: boolean
   allowCloudSync: boolean
   dataRetentionDays: number
+}
+
+export interface AppearanceSettings {
+  theme?: Theme
+  fontSize?: 'small' | 'medium' | 'large'
+  animations?: boolean
+}
+
+export interface ConnectionSettings {
+  type?: 'grpc' | 'websocket'
+  reconnectAttempts?: number
+  timeout?: number
 }
 
 export interface KeyboardShortcuts {

@@ -1,310 +1,267 @@
-"""Configuration Management for Jenna Voice Assistant"""
+"""Configuration settings for Jenna"""
 
 import os
+import logging
 from pathlib import Path
-from typing import Optional, List, Dict, Any
-from pydantic import Field, validator
+from typing import List, Dict, Any, Optional, Set
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import validator, Field
 
 
 class Settings(BaseSettings):
-    """Application settings with environment variable support."""
+    """Application settings using pydantic-settings."""
     
+    # Core settings
+    app_name: str = "Jenna Voice Assistant"
+    app_version: str = "0.1.0"
+    debug: bool = False
+    log_level: str = "INFO"
+    data_dir: str = "./data"
+    temp_dir: str = "./temp"
+    log_dir: str = "./logs"
+    plugins_dir: str = "./plugins"
+    external_plugins_dir: str = "./external_plugins"
+    
+    # Voice recognition settings
+    voice_recognition_enabled: bool = True
+    voice_recognition_engine: str = "vosk"  # vosk, google, azure, whisper
+    preferred_offline_engine: str = "vosk"
+    wake_word: str = "jenna"
+    wake_word_sensitivity: float = 0.5
+    voice_activation_timeout: int = 10  # seconds
+    voice_command_timeout: int = 5  # seconds
+    
+    # Text-to-speech settings
+    tts_enabled: bool = True
+    tts_engine: str = "pyttsx3"  # pyttsx3, google, azure, elevenlabs
+    tts_voice: str = "default"
+    tts_rate: int = 150
+    tts_volume: float = 1.0
+    
+    # API keys
+    openai_api_key: Optional[str] = None
+    openai_model: str = "gpt-3.5-turbo"
+    openai_max_tokens: int = 150
+    
+    google_api_key: Optional[str] = None
+    azure_speech_key: Optional[str] = None
+    azure_speech_region: Optional[str] = None
+    elevenlabs_api_key: Optional[str] = None
+    
+    # Weather API
+    openweathermap_api_key: Optional[str] = None
+    weather_units: str = "metric"  # metric, imperial
+    default_city: Optional[str] = None
+    
+    # News API
+    newsapi_key: Optional[str] = None
+    news_sources: str = "bbc-news,cnn,the-verge,wired,ars-technica"
+    news_categories: str = "technology,science,business,health"
+    news_language: str = "en"
+    news_country: str = "us"
+    news_max_results: int = 5
+    
+    # Wikipedia settings
+    wikipedia_language: str = "en"
+    wikipedia_max_results: int = 3
+    
+    # Email settings
+    email_enabled: bool = False
+    email_provider: Optional[str] = None  # gmail, outlook
+    email_address: Optional[str] = None
+    email_password: Optional[str] = None
+    email_imap_server: Optional[str] = None
+    email_smtp_server: Optional[str] = None
+    
+    # Database settings
+    database_type: str = "sqlite"  # sqlite, mysql, postgres
+    database_path: str = "./data/jenna.db"
+    database_host: Optional[str] = None
+    database_port: Optional[int] = None
+    database_name: Optional[str] = None
+    database_user: Optional[str] = None
+    database_password: Optional[str] = None
+    
+    # Security settings
+    encryption_key: Optional[str] = None
+    require_authentication: bool = False
+    session_timeout: int = 3600  # seconds
+    max_login_attempts: int = 5
+    
+    # Plugin settings
+    plugins_enabled: bool = True
+    auto_load_plugins: bool = True
+    plugin_sandboxing: bool = True
+    allow_network_access: bool = False
+    allow_file_access: bool = False
+    trusted_plugin_sources: List[str] = []
+    plugin_timeout: int = 10  # seconds
+    
+    # Feature toggles
+    feature_app_launcher: bool = True
+    feature_music_control: bool = True
+    feature_screen_analysis: bool = False
+    feature_mood_detection: bool = False
+    feature_ip_geolocation: bool = True
+    feature_currency_exchange: bool = True
+    feature_news: bool = True
+    feature_dictionary: bool = True
+    feature_translation: bool = True
+    feature_recipe: bool = True
+    feature_nutrition: bool = True
+    feature_health_fitness: bool = True
+    feature_financial_management: bool = False
+    feature_music_media: bool = True
+    feature_voice_personality: bool = True
+    
+    # UI settings
+    ui_theme: str = "dark"  # dark, light, system
+    ui_accent_color: str = "blue"  # blue, green, purple, orange, red
+    ui_animation_speed: str = "normal"  # slow, normal, fast, none
+    ui_visualizer: bool = True
+    ui_minimize_to_tray: bool = True
+    ui_start_minimized: bool = False
+    ui_desktop_window: bool = True
+    
+    # System integration
+    start_with_windows: bool = False
+    system_tray_enabled: bool = True
+    hotkey_enabled: bool = True
+    hotkey_combination: str = "ctrl+alt+j"
+    auto_update: bool = True
+    
+    # Performance settings
+    audio_chunk_size: int = 1024
+    audio_sample_rate: int = 16000
+    audio_channels: int = 1
+    processing_threads: int = 4
+    cache_size: int = 100  # MB
+    max_conversation_history: int = 50
+    # Model management settings
+    performance_model_cache_size: int = 5  # Number of models to keep in memory
+    performance_memory_limit_mb: int = 1024  # Memory limit for models in MB
+    performance_use_quantized_models: bool = True  # Whether to use quantized models by default
+    performance_optimize_models: bool = True  # Whether to optimize models on load
+    performance_model_pruning: bool = False  # Whether to prune models (experimental)
+    
+    # Backup settings
+    backup_enabled: bool = True
+    backup_interval: int = 7  # days
+    backup_retention: int = 30  # days
+    backup_location: str = "./backups"
+    backup_include_audio: bool = False
+    
+    # Development settings
+    dev_mode: bool = False
+    mock_apis: bool = False
+    verbose_logging: bool = False
+    skip_audio_init: bool = False
+    
+    # Environment variables configuration
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=False,
+        env_prefix="JENNA_",
         extra="ignore"
     )
     
-    # Core Settings
-    app_name: str = Field(default="Jenna", description="Application name")
-    app_version: str = Field(default="1.0.0", description="Application version")
-    debug: bool = Field(default=False, description="Debug mode")
-    log_level: str = Field(default="INFO", description="Logging level")
-    data_dir: Path = Field(default=Path("./data"), description="Data directory")
-    config_dir: Path = Field(default=Path("./config"), description="Config directory")
-    
-    # Voice Recognition Settings
-    wake_phrase: str = Field(default="Jenna Ready", description="Wake phrase")
-    voice_recognition_engine: str = Field(default="hybrid", description="Recognition engine")
-    offline_model_path: Path = Field(default=Path("./models/vosk"), description="Offline model path")
-    pocketsphinx_model_path: Path = Field(default=Path("./models/pocketsphinx"), description="PocketSphinx model path")
-    speech_timeout: float = Field(default=5.0, description="Speech timeout in seconds")
-    phrase_timeout: float = Field(default=1.0, description="Phrase timeout in seconds")
-    energy_threshold: int = Field(default=300, description="Energy threshold for voice detection")
-    dynamic_energy_threshold: bool = Field(default=True, description="Dynamic energy threshold")
-    preferred_offline_engine: str = Field(default="vosk", description="Preferred offline recognition engine")
-    
-    # Text-to-Speech Settings
-    tts_engine: str = Field(default="pyttsx3", description="TTS engine")
-    voice_gender: str = Field(default="female", description="Voice gender")
-    speech_rate: int = Field(default=200, description="Speech rate")
-    volume: float = Field(default=0.8, description="Speech volume")
-    voice_id: Optional[str] = Field(default=None, description="Specific voice ID")
-    
-    # API Keys
-    google_cloud_credentials_path: Optional[str] = Field(default=None, description="Google Cloud credentials")
-    google_application_credentials: Optional[str] = Field(default=None, description="Google app credentials")
-    weather_api_key: Optional[str] = Field(default=None, description="Weather API key")
-    weather_service_url: str = Field(default="https://api.weatherapi.com/v1", description="Weather service URL")
-    openai_api_key: Optional[str] = Field(default=None, description="OpenAI API key")
-    openai_model: str = Field(default="gpt-3.5-turbo", description="OpenAI model")
-    openai_max_tokens: int = Field(default=150, description="OpenAI max tokens")
-    
-    # New API Keys for Public APIs
-    ipstack_api_key: Optional[str] = Field(default=None, description="IPstack API key for geolocation")
-    fixer_api_key: Optional[str] = Field(default=None, description="Fixer API key for currency exchange")
-    news_api_key: Optional[str] = Field(default=None, description="News API key for news articles")
-    wordnik_api_key: Optional[str] = Field(default=None, description="Wordnik API key for dictionary feature")
-    linguatools_api_key: Optional[str] = Field(default=None, description="LinguaTools API key for translation feature")
-    edamam_recipe_app_id: Optional[str] = Field(default=None, description="Edamam Recipe API app ID")
-    edamam_recipe_app_key: Optional[str] = Field(default=None, description="Edamam Recipe API app key")
-    edamam_nutrition_app_id: Optional[str] = Field(default=None, description="Edamam Nutrition API app ID")
-    edamam_nutrition_app_key: Optional[str] = Field(default=None, description="Edamam Nutrition API app key")
-    
-    # News API Settings
-    news_default_country: str = Field(default="us", description="Default country for news")
-    news_default_language: str = Field(default="en", description="Default language for news")
-    news_default_category: str = Field(default="general", description="Default news category")
-    
-    # Wikipedia Settings
-    wikipedia_language: str = Field(default="en", description="Wikipedia language")
-    wikipedia_sentences: int = Field(default=3, description="Wikipedia summary sentences")
-    
-    # Email Configuration
-    email_enabled: bool = Field(default=False, description="Email feature enabled")
-    smtp_server: Optional[str] = Field(default=None, description="SMTP server")
-    smtp_port: int = Field(default=587, description="SMTP port")
-    smtp_username: Optional[str] = Field(default=None, description="SMTP username")
-    smtp_password: Optional[str] = Field(default=None, description="SMTP password")
-    imap_server: Optional[str] = Field(default=None, description="IMAP server")
-    imap_port: int = Field(default=993, description="IMAP port")
-    email_address: Optional[str] = Field(default=None, description="Email address")
-    
-    # Database Settings
-    database_url: str = Field(default="sqlite:///./data/jenna.db", description="Database URL")
-    database_echo: bool = Field(default=False, description="Database echo SQL")
-    
-    # Security Settings
-    secret_key: str = Field(default="your-secret-key-here-change-this", description="Secret key")
-    jwt_algorithm: str = Field(default="HS256", description="JWT algorithm")
-    jwt_expiration_hours: int = Field(default=24, description="JWT expiration hours")
-    encryption_key: Optional[str] = Field(default=None, description="Encryption key")
-    
-    # Feature Toggles
-    feature_pomodoro: bool = Field(default=True, description="Pomodoro timer feature")
-    feature_flashcards: bool = Field(default=True, description="Flashcards feature")
-    feature_weather: bool = Field(default=True, description="Weather feature")
-    feature_email: bool = Field(default=False, description="Email feature")
-    feature_file_operations: bool = Field(default=True, description="File operations feature")
-    feature_app_launcher: bool = Field(default=True, description="App launcher feature")
-    feature_music_control: bool = Field(default=True, description="Music control feature")
-    feature_screen_analysis: bool = Field(default=True, description="Screen analysis feature")
-    feature_mood_detection: bool = Field(default=True, description="Mood detection feature")
-    feature_backup: bool = Field(default=True, description="Backup feature")
-    
-    # New Feature Toggles
-    feature_ipstack: bool = Field(default=True, description="IP geolocation feature")
-    feature_fixer: bool = Field(default=True, description="Currency exchange feature")
-    feature_news: bool = Field(default=True, description="News articles feature")
-    feature_dictionary: bool = Field(default=True, description="Dictionary lookup feature")
-    feature_translation: bool = Field(default=True, description="Text translation feature")
-    feature_recipe: bool = Field(default=True, description="Recipe search feature")
-    feature_nutrition: bool = Field(default=True, description="Nutrition analysis feature")
-    
-    # Additional Features
-    feature_health_fitness: bool = Field(default=True, description="Health and fitness tracking feature")
-    feature_financial_management: bool = Field(default=True, description="Financial management and budgeting feature")
-    feature_music_media: bool = Field(default=True, description="Music and media control feature")
-    feature_voice_personality: bool = Field(default=True, description="Customizable voice and personality feature")
-    
-    # UI Settings
-    ui_theme: str = Field(default="dark", description="UI theme")
-    ui_accent_color: str = Field(default="#00ff88", description="UI accent color")
-    ui_animation_speed: str = Field(default="normal", description="UI animation speed")
-    ui_show_visualizer: bool = Field(default=True, description="Show audio visualizer")
-    ui_minimize_to_tray: bool = Field(default=True, description="Minimize to tray")
-    ui_start_minimized: bool = Field(default=False, description="Start minimized")
-    use_desktop_window: bool = Field(default=True, description="Use native desktop window instead of browser")
-    
-    # System Integration
-    start_with_windows: bool = Field(default=True, description="Start with Windows")
-    system_tray_enabled: bool = Field(default=True, description="System tray enabled")
-    hotkey_toggle: str = Field(default="ctrl+shift+j", description="Global hotkey")
-    auto_update_check: bool = Field(default=True, description="Auto update check")
-    update_channel: str = Field(default="stable", description="Update channel")
-    
-    # Performance Settings
-    audio_chunk_size: int = Field(default=1024, description="Audio chunk size")
-    audio_sample_rate: int = Field(default=16000, description="Audio sample rate")
-    audio_channels: int = Field(default=1, description="Audio channels")
-    processing_threads: int = Field(default=4, description="Processing threads")
-    cache_size_mb: int = Field(default=100, description="Cache size in MB")
-    max_conversation_history: int = Field(default=50, description="Max conversation history")
-    
-    # Backup Settings
-    backup_enabled: bool = Field(default=True, description="Backup enabled")
-    backup_interval_hours: int = Field(default=24, description="Backup interval hours")
-    backup_retention_days: int = Field(default=30, description="Backup retention days")
-    backup_location: Path = Field(default=Path("./backups"), description="Backup location")
-    backup_include_audio: bool = Field(default=False, description="Include audio in backups")
-    
-    # Development Settings
-    dev_mode: bool = Field(default=False, description="Development mode")
-    dev_mock_apis: bool = Field(default=False, description="Mock APIs in dev")
-    dev_verbose_logging: bool = Field(default=False, description="Verbose logging in dev")
-    dev_skip_audio_init: bool = Field(default=False, description="Skip audio init in dev")
-    
-    @validator('data_dir', 'config_dir', 'offline_model_path', 'backup_location', pre=True)
-    def convert_to_path(cls, v):
-        """Convert string paths to Path objects."""
-        if isinstance(v, str):
-            return Path(v)
-        return v
-    
-    @validator('log_level')
+    # Validators
+    @validator("log_level")
     def validate_log_level(cls, v):
-        """Validate log level."""
-        valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
-        if v.upper() not in valid_levels:
-            raise ValueError(f"Log level must be one of: {valid_levels}")
+        allowed_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        if v.upper() not in allowed_levels:
+            raise ValueError(f"Log level must be one of {allowed_levels}")
         return v.upper()
     
-    @validator('voice_recognition_engine')
+    @validator("voice_recognition_engine")
     def validate_voice_engine(cls, v):
-        """Validate voice recognition engine."""
-        valid_engines = ['google', 'vosk', 'pocketsphinx', 'hybrid']
-        if v not in valid_engines:
-            raise ValueError(f"Voice engine must be one of: {valid_engines}")
-        return v
-        
-    @validator('preferred_offline_engine')
+        allowed_engines = ["vosk", "google", "azure", "whisper"]
+        if v.lower() not in allowed_engines:
+            raise ValueError(f"Voice recognition engine must be one of {allowed_engines}")
+        return v.lower()
+    
+    @validator("preferred_offline_engine")
     def validate_offline_engine(cls, v):
-        """Validate preferred offline engine."""
-        valid_engines = ['vosk', 'pocketsphinx']
-        if v not in valid_engines:
-            raise ValueError(f"Preferred offline engine must be one of: {valid_engines}")
-        return v
+        allowed_engines = ["vosk", "whisper"]
+        if v.lower() not in allowed_engines:
+            raise ValueError(f"Offline engine must be one of {allowed_engines}")
+        return v.lower()
     
-    @validator('tts_engine')
+    @validator("tts_engine")
     def validate_tts_engine(cls, v):
-        """Validate TTS engine."""
-        valid_engines = ['pyttsx3', 'azure', 'google']
-        if v not in valid_engines:
-            raise ValueError(f"TTS engine must be one of: {valid_engines}")
-        return v
+        allowed_engines = ["pyttsx3", "google", "azure", "elevenlabs"]
+        if v.lower() not in allowed_engines:
+            raise ValueError(f"TTS engine must be one of {allowed_engines}")
+        return v.lower()
     
-    @validator('ui_theme')
+    @validator("ui_theme")
     def validate_ui_theme(cls, v):
-        """Validate UI theme."""
-        valid_themes = ['light', 'dark', 'auto']
-        if v not in valid_themes:
-            raise ValueError(f"UI theme must be one of: {valid_themes}")
-        return v
+        allowed_themes = ["dark", "light", "system"]
+        if v.lower() not in allowed_themes:
+            raise ValueError(f"UI theme must be one of {allowed_themes}")
+        return v.lower()
     
-    @validator('volume')
+    @validator("tts_volume")
     def validate_volume(cls, v):
-        """Validate volume range."""
-        if not 0.0 <= v <= 1.0:
-            raise ValueError("Volume must be between 0.0 and 1.0")
+        if v < 0 or v > 1:
+            raise ValueError("Volume must be between 0 and 1")
         return v
     
     def get_enabled_features(self) -> List[str]:
-        """Get list of enabled features."""
-        features = []
-        for field_name, field_info in self.__fields__.items():
-            if field_name.startswith('feature_') and getattr(self, field_name):
-                feature_name = field_name.replace('feature_', '')
-                features.append(feature_name)
-        return features
+        """Get a list of enabled features."""
+        enabled_features = []
+        for key, value in self.__dict__.items():
+            if key.startswith("feature_") and value is True:
+                feature_name = key.replace("feature_", "")
+                enabled_features.append(feature_name)
+        return enabled_features
     
-    def get_missing_api_keys(self) -> Dict[str, str]:
-        """Get list of missing API keys and their required features."""
-        missing = {}
+    def get_missing_api_keys(self) -> Dict[str, List[str]]:
+        """Get a dictionary of missing API keys and their associated features."""
+        missing_keys = {}
         
-        if self.feature_weather and not self.weather_api_key:
-            missing['weather_api_key'] = 'Weather updates'
+        # Map API keys to features
+        api_feature_map = {
+            "openai_api_key": ["voice_personality", "text_analysis"],
+            "google_api_key": ["speech_recognition", "translation"],
+            "azure_speech_key": ["speech_recognition", "text_to_speech"],
+            "elevenlabs_api_key": ["voice_personality"],
+            "openweathermap_api_key": ["weather"],
+            "newsapi_key": ["news"]
+        }
         
-        if not self.openai_api_key:
-            missing['openai_api_key'] = 'Enhanced AI responses'
+        # Check for missing keys
+        for key, features in api_feature_map.items():
+            if not getattr(self, key, None):
+                missing_keys[key] = features
         
-        if self.feature_email and not all([self.smtp_server, self.smtp_username, self.smtp_password]):
-            missing['email_config'] = 'Email management'
-        
-        if self.voice_recognition_engine in ['google', 'hybrid'] and not self.google_cloud_credentials_path:
-            missing['google_cloud_credentials'] = 'Google Speech Recognition'
-        
-        # New API key checks
-        if self.feature_ipstack and not self.ipstack_api_key:
-            missing['ipstack_api_key'] = 'IP geolocation'
-            
-        if self.feature_fixer and not self.fixer_api_key:
-            missing['fixer_api_key'] = 'Currency exchange'
-            
-        if self.feature_news and not self.news_api_key:
-            missing['news_api_key'] = 'News articles'
-            
-        if self.feature_dictionary and not self.wordnik_api_key:
-            missing['wordnik_api_key'] = 'Dictionary lookup'
-            
-        if self.feature_translation and not self.linguatools_api_key:
-            missing['linguatools_api_key'] = 'Text translation'
-            
-        if self.feature_recipe and not (self.edamam_recipe_app_id and self.edamam_recipe_app_key):
-            missing['edamam_recipe_credentials'] = 'Recipe search'
-            
-        if self.feature_nutrition and not (self.edamam_nutrition_app_id and self.edamam_nutrition_app_key):
-            missing['edamam_nutrition_credentials'] = 'Nutrition analysis'
-        
-        return missing
+        return missing_keys
     
-    def is_feature_available(self, feature: str) -> bool:
-        """Check if a feature is available (enabled and has required API keys)."""
-        feature_enabled = getattr(self, f'feature_{feature}', False)
-        if not feature_enabled:
+    def is_feature_available(self, feature_name: str) -> bool:
+        """Check if a feature is available based on being enabled and having required API keys."""
+        # Check if feature is enabled
+        feature_toggle = f"feature_{feature_name}"
+        if not getattr(self, feature_toggle, False):
             return False
         
-        # Check feature-specific requirements
-        if feature == 'weather':
-            return bool(self.weather_api_key)
-        elif feature == 'email':
-            return bool(self.smtp_server and self.smtp_username and self.smtp_password)
-        elif feature == 'ipstack':
-            return bool(self.ipstack_api_key)
-        elif feature == 'fixer':
-            return bool(self.fixer_api_key)
-        elif feature == 'news':
-            return bool(self.news_api_key)
-        elif feature == 'dictionary':
-            return bool(self.wordnik_api_key)
-        elif feature == 'translation':
-            return bool(self.linguatools_api_key)
-        elif feature == 'recipe':
-            return bool(self.edamam_recipe_app_id and self.edamam_recipe_app_key)
-        elif feature == 'nutrition':
-            return bool(self.edamam_nutrition_app_id and self.edamam_nutrition_app_key)
+        # Check for required API keys
+        missing_keys = self.get_missing_api_keys()
+        for key, features in missing_keys.items():
+            if feature_name in features:
+                return False
         
         return True
     
     def get_database_path(self) -> Path:
-        """Get the database file path."""
-        if self.database_url.startswith('sqlite:///'):
-            db_path = self.database_url.replace('sqlite:///', '')
-            return Path(db_path)
-        return self.data_dir / "jenna.db"
+        """Get the database path as a Path object."""
+        if self.database_type == "sqlite":
+            return Path(self.database_path).expanduser().absolute()
+        return None
     
     def ensure_directories(self):
-        """Ensure all required directories exist."""
-        directories = [
-            self.data_dir,
-            self.config_dir,
-            self.backup_location,
-            self.offline_model_path.parent if self.offline_model_path else None
-        ]
-        
-        for directory in directories:
-            if directory:
-                directory.mkdir(parents=True, exist_ok=True)
-    
-    # Configuration is handled by model_config above
+        """Ensure that necessary directories exist."""
+        for dir_name in [self.data_dir, self.temp_dir, self.log_dir, 
+                         self.plugins_dir, self.external_plugins_dir, 
+                         self.backup_location]:
+            Path(dir_name).expanduser().absolute().mkdir(parents=True, exist_ok=True)

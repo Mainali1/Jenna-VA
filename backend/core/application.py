@@ -12,6 +12,7 @@ from .ai_engine import AIEngine
 from .ui_manager import UIManager
 from .system_tray import SystemTrayManager
 from .feature_manager import FeatureManager
+from .plugin_manager import PluginManager
 from .service_manager import ServiceManager
 from ..utils.exceptions import JennaException
 
@@ -31,6 +32,7 @@ class JennaApplication:
         self.ui_manager: Optional[UIManager] = None
         self.system_tray: Optional[SystemTrayManager] = None
         self.feature_manager: Optional[FeatureManager] = None
+        self.plugin_manager: Optional[PluginManager] = None
         self.service_manager: Optional[ServiceManager] = None
         
         # State management
@@ -58,6 +60,10 @@ class JennaApplication:
             # Initialize feature manager
             self.feature_manager = FeatureManager(self.settings, self.service_manager)
             await self.feature_manager.initialize()
+            
+            # Initialize plugin manager
+            self.plugin_manager = PluginManager(self.settings, self.feature_manager)
+            await self.plugin_manager.initialize()
             
             # Initialize UI manager
             self.ui_manager = UIManager(self.settings)
@@ -161,7 +167,8 @@ class JennaApplication:
             response = await self.ai_engine.process_command(
                 command, 
                 context=self.conversation_context,
-                features=self.feature_manager
+                features=self.feature_manager,
+                plugins=self.plugin_manager
             )
             
             # Add response to context
@@ -206,6 +213,18 @@ class JennaApplication:
             try:
                 if self.feature_manager:
                     await self.feature_manager.execute_action(action)
+                    
+                # Check if action is for a plugin
+                if self.plugin_manager and action.get('type') == 'plugin':
+                    plugin_name = action.get('plugin_name')
+                    method_name = action.get('method')
+                    args = action.get('args', [])
+                    kwargs = action.get('kwargs', {})
+                    
+                    if plugin_name and method_name:
+                        await self.plugin_manager.call_plugin_method(
+                            plugin_name, method_name, *args, **kwargs
+                        )
             except Exception as e:
                 self.logger.error(f"Error executing action {action}: {e}")
     
@@ -261,6 +280,9 @@ class JennaApplication:
             
             if self.ui_manager:
                 await self.ui_manager.cleanup()
+            
+            if self.plugin_manager:
+                await self.plugin_manager.cleanup()
             
             if self.feature_manager:
                 await self.feature_manager.cleanup()

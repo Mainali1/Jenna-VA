@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package jenna;
+
+// Main service definition for Jenna Voice Assistant
+service JennaService {
+  // Bidirectional streaming RPC for real-time conversation
+  rpc StreamConversation(stream StreamRequest) returns (stream StreamResponse) {}
+  
+  // Unary RPC for simple commands
+  rpc ExecuteCommand(CommandRequest) returns (CommandResponse) {}
+  
+  // Server streaming RPC for long-running operations
+  rpc StartOperation(OperationRequest) returns (stream OperationResponse) {}
+  
+  // Client streaming RPC for uploading data
+  rpc UploadData(stream DataChunk) returns (UploadResponse) {}
+}
+
+// Message for bidirectional streaming conversation
+message StreamRequest {
+  string type = 1;        // Message type (text, audio, command, ping, etc.)
+  string content = 2;      // Message content (text or base64 encoded audio)
+  string timestamp = 3;    // ISO timestamp
+  string id = 4;           // Unique message ID
+  map<string, string> metadata = 5;  // Additional metadata
+}
+
+message StreamResponse {
+  string type = 1;        // Message type (text, audio, notification, pong, etc.)
+  string content = 2;      // Message content (text or base64 encoded audio)
+  string timestamp = 3;    // ISO timestamp
+  string id = 4;           // Unique message ID
+  map<string, string> metadata = 5;  // Additional metadata
+}
+
+// Messages for command execution
+message CommandRequest {
+  string command = 1;      // Command to execute
+  map<string, string> params = 2;  // Command parameters
+  string id = 3;           // Request ID
+}
+
+message CommandResponse {
+  bool success = 1;        // Whether the command was successful
+  string message = 2;      // Response message
+  string id = 3;           // Request ID (echoed back)
+  bytes data = 4;          // Optional binary data
+  map<string, string> metadata = 5;  // Additional metadata
+}
+
+// Messages for long-running operations
+message OperationRequest {
+  string operation_type = 1;  // Type of operation
+  map<string, string> params = 2;  // Operation parameters
+  string id = 3;           // Operation ID
+}
+
+message OperationResponse {
+  string status = 1;       // Operation status (running, completed, failed)
+  double progress = 2;     // Progress (0.0 to 1.0)
+  string message = 3;      // Status message
+  string id = 4;           // Operation ID (echoed back)
+  bytes data = 5;          // Optional binary data
+  map<string, string> metadata = 6;  // Additional metadata
+}
+
+// Messages for data upload
+message DataChunk {
+  string id = 1;           // Upload ID
+  bytes data = 2;          // Chunk data
+  uint32 chunk_index = 3;  // Chunk index
+  uint32 total_chunks = 4; // Total number of chunks
+  string file_name = 5;    // Original file name
+  string content_type = 6; // MIME type
+}
+
+message UploadResponse {
+  bool success = 1;        // Whether the upload was successful
+  string message = 2;      // Response message
+  string id = 3;           // Upload ID (echoed back)
+  string file_path = 4;    // Path to the uploaded file
+  uint64 file_size = 5;    // Size of the uploaded file in bytes
+  map<string, string> metadata = 6;  // Additional metadata
+}
