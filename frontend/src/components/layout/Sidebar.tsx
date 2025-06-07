@@ -12,6 +12,7 @@ import {
   XMarkIcon,
   MicrophoneIcon,
   UserCircleIcon,
+  CodeBracketIcon,
 } from '@heroicons/react/24/outline'
 import { useAppStore } from '@store/appStore'
 import { useConversationStore } from '@store/conversationStore'
@@ -48,6 +49,12 @@ const navigationItems = [
     href: '/analytics',
     icon: ChartBarIcon,
     description: 'Usage statistics and insights',
+  },
+  {
+    name: 'WebAssembly',
+    href: '/wasm-demo',
+    icon: CodeBracketIcon,
+    description: 'WebAssembly integration demo',
   },
   {
     name: 'Settings',

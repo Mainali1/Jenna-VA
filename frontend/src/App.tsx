@@ -14,6 +14,7 @@ import Settings from '@pages/Settings'
 import Features from '@pages/Features'
 import Analytics from '@pages/Analytics'
 import Help from '@pages/Help'
+import WasmDemoPage from '@pages/WasmDemoPage'
 
 // Hooks
 import { useAppStore } from '@store/appStore'
@@ -348,6 +349,21 @@ const App: React.FC = () => {
                     transition={{ duration: 0.2 }}
                   >
                     <Help />
+                  </motion.div>
+                } 
+              />
+              
+              <Route 
+                path="/wasm-demo" 
+                element={
+                  <motion.div
+                    key="wasm-demo"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <WasmDemoPage />
                   </motion.div>
                 } 
               />
